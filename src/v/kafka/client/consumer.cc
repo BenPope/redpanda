@@ -9,12 +9,15 @@
 
 #include "kafka/client/consumer.h"
 
+#include "bytes/iobuf_parser.h"
 #include "kafka/client/assignment_plans.h"
+#include "kafka/client/broker.h"
 #include "kafka/client/configuration.h"
 #include "kafka/client/exceptions.h"
 #include "kafka/client/logger.h"
 #include "kafka/protocol/describe_groups.h"
 #include "kafka/protocol/errors.h"
+#include "kafka/protocol/fetch.h"
 #include "kafka/protocol/find_coordinator.h"
 #include "kafka/protocol/heartbeat.h"
 #include "kafka/protocol/join_group.h"
@@ -22,6 +25,12 @@
 #include "kafka/protocol/metadata.h"
 #include "kafka/protocol/sync_group.h"
 #include "kafka/types.h"
+#include "model/fundamental.h"
+#include "model/metadata.h"
+#include "model/record_utils.h"
+
+#include <seastar/core/coroutine.hh>
+#include <seastar/core/loop.hh>
 
 #include <chrono>
 #include <exception>
@@ -286,12 +295,11 @@ consumer::offset_fetch(std::vector<offset_fetch_request_topic> topics) {
     };
     return req_res(std::move(req_builder))
       .then([this](offset_fetch_response res) {
-          return res.data.error_code == error_code::none
-                   ? ss::make_ready_future<offset_fetch_response>(
-                     std::move(res))
-                   : ss::make_exception_future<offset_fetch_response>(
-                     consumer_error(
-                       _group_id, _member_id, res.data.error_code));
+          if (res.data.error_code != error_code::none) {
+              return ss::make_exception_future<offset_fetch_response>(
+                consumer_error(_group_id, _member_id, res.data.error_code));
+          }
+          return ss::make_ready_future<offset_fetch_response>(std::move(res));
       });
 }
 
@@ -308,10 +316,84 @@ consumer::offset_commit(std::vector<offset_commit_request_topic> topics) {
     return req_res(std::move(req_builder));
 }
 
-ss::future<shared_consumer_t>
-make_consumer(shared_broker_t coordinator, group_id group_id) {
+ss::future<fetch_response>
+consumer::consume(std::chrono::milliseconds timeout, int32_t max_bytes) {
+    using broker_reqs_t = absl::node_hash_map<shared_broker_t, fetch_request>;
+
+    // Split requests by broker
+    broker_reqs_t broker_reqs;
+    for (auto const& [t, ps] : _assignment) {
+        for (const auto& p : ps) {
+            auto tp = model::topic_partition{t, p};
+            auto broker = co_await _brokers.find(tp);
+            auto& session = _fetch_sessions[broker];
+
+            auto& req = broker_reqs
+                          .try_emplace(
+                            broker,
+                            fetch_request{
+                              .replica_id = model::node_id{-1}, // consumer
+                              .max_wait_time = timeout,
+                              .min_bytes = 0,
+                              .max_bytes = max_bytes,
+                              .isolation_level = 0, // READ_UNCOMMITTED
+                              .session_id = session.id(),
+                              .session_epoch = session.epoch(),
+                            })
+                          .first->second;
+            auto offset = session.offset(tp);
+
+            if (req.topics.empty() || req.topics.back().name != t) {
+                req.topics.push_back(fetch_request::topic{.name{t}});
+            }
+
+            req.topics.back().partitions.push_back(fetch_request::partition{
+              .id = p,
+              .fetch_offset = offset,
+              .partition_max_bytes = max_bytes});
+        }
+    }
+
+    auto dispatch_fetch =
+      [this](broker_reqs_t::value_type br) -> ss::future<fetch_response> {
+        auto& [broker, req] = br;
+        kclog.trace("Consumer: {}, fetch_req: {}", *this, req);
+        auto res = co_await broker->dispatch(std::move(req));
+        kclog.trace("Consumer: {}, fetch_res: {}", *this, res);
+
+        if (res.error == error_code::none) {
+            _fetch_sessions[broker].apply(res);
+        }
+
+        co_return res;
+    };
+
+    auto reduce_fetch_response = [](fetch_response result, fetch_response val) {
+        result.throttle_time += val.throttle_time;
+        result.error = val.error;           // TODO Ben: This could be better
+        result.session_id = val.session_id; // TODO Ben: vassert?
+        result.partitions.insert(
+          result.partitions.end(),
+          std::make_move_iterator(val.partitions.begin()),
+          std::make_move_iterator(val.partitions.end()));
+
+        return result;
+    };
+
+    // TODO Ben:
+    // * Size & time limit - round-robin
+    co_return co_await ss::map_reduce(
+      std::make_move_iterator(broker_reqs.begin()),
+      std::make_move_iterator(broker_reqs.end()),
+      dispatch_fetch,
+      fetch_response{},
+      reduce_fetch_response);
+}
+
+ss::future<shared_consumer_t> make_consumer(
+  brokers& brokers, shared_broker_t coordinator, group_id group_id) {
     auto c = ss::make_lw_shared<consumer>(
-      std::move(coordinator), std::move(group_id));
+      brokers, std::move(coordinator), std::move(group_id));
     return c->join().then([c]() mutable { return std::move(c); });
 }
 
