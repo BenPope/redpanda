@@ -101,11 +101,8 @@ void log_certificate_reload_event(
   const std::unordered_set<ss::sstring>& updated,
   const std::exception_ptr& eptr);
 
-template<typename Proto, typename Func>
-CONCEPT(requires requires(Func&& f, Proto c) { f(c); })
-auto do_with_client_one_shot(
-  unresolved_address addr, config::tls_config tls_config, Func&& f) {
-    using transport_ptr = ss::lw_shared_ptr<rpc::transport>;
+inline ss::future<ss::shared_ptr<ss::tls::certificate_credentials>>
+maybe_build_reloadable_certificate_credentials(config::tls_config tls_config) {
     return std::move(tls_config)
       .get_credentials_builder()
       .then([](std::optional<ss::tls::credentials_builder> credentials) {
@@ -120,7 +117,15 @@ auto do_with_client_one_shot(
           }
           return ss::make_ready_future<
             ss::shared_ptr<ss::tls::certificate_credentials>>(nullptr);
-      })
+      });
+}
+
+template<typename Proto, typename Func>
+CONCEPT(requires requires(Func&& f, Proto c) { f(c); })
+auto do_with_client_one_shot(
+  unresolved_address addr, config::tls_config tls_config, Func&& f) {
+    using transport_ptr = ss::lw_shared_ptr<rpc::transport>;
+    return maybe_build_reloadable_certificate_credentials(std::move(tls_config))
       .then([addr = std::move(addr)](
               ss::shared_ptr<ss::tls::certificate_credentials>&& cert) {
           return addr.resolve().then(
