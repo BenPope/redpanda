@@ -25,6 +25,7 @@
 #include "storage/record_batch_builder.h"
 
 #include <seastar/core/future.hh>
+#include <seastar/http/reply.hh>
 
 #include <absl/container/flat_hash_map.h>
 #include <boost/algorithm/string.hpp>
@@ -253,4 +254,17 @@ consumer_fetch(server::request_t rq, server::reply_t rp) {
           return std::move(rp);
       });
 }
+
+ss::future<server::reply_t>
+consumer_offset_reset(server::request_t rq, server::reply_t rp) {
+    auto group_id = kafka::group_id(rq.req->param["group_name"]);
+    auto member_id = kafka::member_id(rq.req->param["instance"]);
+
+    return rq.ctx.client.consumer_offset_reset(group_id, member_id)
+      .then([rp{std::move(rp)}]() mutable {
+          rp.rep->set_status(ss::httpd::reply::status_type::no_content);
+          return std::move(rp);
+      });
+}
+
 } // namespace pandaproxy

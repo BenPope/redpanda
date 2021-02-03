@@ -54,6 +54,13 @@ seastar_generate_swagger(
   OUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/api/api-doc/consumer_fetch.json.h
 )
 
+seastar_generate_swagger(
+  TARGET consumer_offset_reset_swagger
+  VAR consumer_offset_reset_swagger_file
+  IN_FILE ${CMAKE_CURRENT_SOURCE_DIR}/api/api-doc/consumer_offset_reset.json
+  OUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/api/api-doc/consumer_offset_reset.json.h
+)
+
 v_cc_library(
   NAME rest_application
   SRCS
@@ -86,6 +93,7 @@ add_dependencies(v_rest_application
   create_consumer_swagger
   subscribe_consumer_swagger
   consumer_fetch_swagger
+  consumer_offset_reset_swagger
 )
 
 if(CMAKE_BUILD_TYPE MATCHES Release)
