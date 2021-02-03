@@ -316,6 +316,13 @@ consumer::offset_commit(std::vector<offset_commit_request_topic> topics) {
     return req_res(std::move(req_builder));
 }
 
+ss::future<> consumer::reset_offsets() {
+    for (auto& fs : _fetch_sessions) {
+        fs.second.reset_offsets();
+    }
+    return ss::now();
+}
+
 ss::future<fetch_response>
 consumer::consume(std::chrono::milliseconds timeout, int32_t max_bytes) {
     using broker_reqs_t = absl::node_hash_map<shared_broker_t, fetch_request>;

@@ -133,6 +133,9 @@ public:
       const member_id& m_id,
       std::vector<offset_commit_request_topic> topics);
 
+    ss::future<>
+    consumer_offset_reset(const group_id& g_id, const member_id& m_id);
+
     ss::future<fetch_response> consume(
       const group_id& g_id,
       const member_id& m_id,

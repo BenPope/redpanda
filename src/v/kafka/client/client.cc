@@ -268,6 +268,13 @@ ss::future<offset_commit_response> client::consumer_offset_commit(
       });
 }
 
+ss::future<>
+client::consumer_offset_reset(const group_id& g_id, const member_id& name) {
+    return get_consumer(g_id, name).then([](shared_consumer_t c) mutable {
+        return c->reset_offsets();
+    });
+}
+
 ss::future<kafka::fetch_response> client::consume(
   const group_id& g_id,
   const member_id& name,
