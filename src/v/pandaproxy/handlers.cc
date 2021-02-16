@@ -18,6 +18,7 @@
 #include "pandaproxy/json/requests/produce.h"
 #include "pandaproxy/json/requests/subscribe_consumer.h"
 #include "pandaproxy/json/rjson_util.h"
+#include "pandaproxy/logger.h"
 #include "pandaproxy/reply.h"
 #include "raft/types.h"
 #include "ssx/future-util.h"
@@ -190,16 +191,16 @@ create_consumer(server::request_t rq, server::reply_t rp) {
       rq.req->content.data(), ppj::create_consumer_request_handler());
     auto group_id = kafka::group_id(rq.req->param["group_name"]);
 
-    return rq.ctx.client.create_consumer(group_id).then(
-      [group_id, rp{std::move(rp)}](kafka::member_id m_id) mutable {
+    return rq.ctx.client.create_consumer(group_id, req_data.name)
+      .then([group_id, rp{std::move(rp)}](kafka::member_id name) mutable {
           auto adv_addr = shard_local_cfg().advertised_pandaproxy_api();
           json::create_consumer_response res{
-            .instance_id = m_id,
+            .instance_id = name,
             .base_uri = fmt::format(
               "http://{}:{}/consumers/{}",
               adv_addr.host(),
               adv_addr.port(),
-              m_id())};
+              name())};
           auto json_rslt = ppj::rjson_serialize(res);
           rp.rep->write_body("json", json_rslt);
           return std::move(rp);
@@ -223,6 +224,7 @@ subscribe_consumer(server::request_t rq, server::reply_t rp) {
 
 ss::future<server::reply_t>
 consumer_fetch(server::request_t rq, server::reply_t rp) {
+    vlog(plog.info, "consumer_fetch");
     auto fmt = parse_serialization_format(rq.req->get_header("Accept"));
     if (fmt == ppj::serialization_format::unsupported) {
         rp.rep = unprocessable_entity("Unsupported serialization format");
@@ -235,10 +237,11 @@ consumer_fetch(server::request_t rq, server::reply_t rp) {
     int32_t max_bytes{
       boost::lexical_cast<int32_t>(rq.req->get_query_param("max_bytes"))};
     auto group_id = kafka::group_id(rq.req->param["group_name"]);
-    auto member_id = kafka::member_id(rq.req->param["instance"]);
+    auto name = kafka::member_id(rq.req->param["instance"]);
 
-    return rq.ctx.client.consume(group_id, member_id, timeout, max_bytes)
+    return rq.ctx.client.consume(group_id, name, timeout, max_bytes)
       .then([fmt, rp{std::move(rp)}](kafka::fetch_response res) mutable {
+          vlog(plog.info, "consumer_fetch response: ", res);
           rapidjson::StringBuffer str_buf;
           rapidjson::Writer<rapidjson::StringBuffer> w(str_buf);
 
