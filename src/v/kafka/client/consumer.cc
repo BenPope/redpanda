@@ -323,6 +323,8 @@ ss::future<> consumer::reset_offsets() {
     return ss::now();
 }
 
+using broker_reqs_t = absl::node_hash_map<shared_broker_t, fetch_request>;
+
 ss::future<fetch_response>
 consumer::consume(std::chrono::milliseconds timeout, int32_t max_bytes) {
     using broker_reqs_t = absl::node_hash_map<shared_broker_t, fetch_request>;
@@ -339,7 +341,7 @@ consumer::consume(std::chrono::milliseconds timeout, int32_t max_bytes) {
                           .try_emplace(
                             broker,
                             fetch_request{
-                              .replica_id = model::node_id{-1}, // consumer
+                              .replica_id = consumer_node_id,
                               .max_wait_time = timeout,
                               .min_bytes = 0,
                               .max_bytes = max_bytes,
@@ -348,7 +350,6 @@ consumer::consume(std::chrono::milliseconds timeout, int32_t max_bytes) {
                               .session_epoch = session.epoch(),
                             })
                           .first->second;
-            auto offset = session.offset(tp);
 
             if (req.topics.empty() || req.topics.back().name != t) {
                 req.topics.push_back(fetch_request::topic{.name{t}});
@@ -356,7 +357,7 @@ consumer::consume(std::chrono::milliseconds timeout, int32_t max_bytes) {
 
             req.topics.back().partitions.push_back(fetch_request::partition{
               .id = p,
-              .fetch_offset = offset,
+              .fetch_offset = session.offset(tp),
               .partition_max_bytes = max_bytes});
         }
     }
