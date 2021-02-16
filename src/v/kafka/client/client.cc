@@ -177,7 +177,8 @@ ss::future<fetch_response> client::fetch_partition(
       });
 }
 
-ss::future<member_id> client::create_consumer(const group_id& group_id) {
+ss::future<member_id>
+client::create_consumer(const group_id& group_id, member_id name) {
     auto build_request = [group_id]() {
         return find_coordinator_request(group_id);
     };
@@ -186,29 +187,32 @@ ss::future<member_id> client::create_consumer(const group_id& group_id) {
           return make_broker(
             res.data.node_id, unresolved_address(res.data.host, res.data.port));
       })
-      .then([this, group_id](shared_broker_t coordinator) mutable {
+      .then([this, group_id, name](shared_broker_t coordinator) mutable {
           return make_consumer(
-            _brokers, std::move(coordinator), std::move(group_id));
+            _brokers,
+            std::move(coordinator),
+            std::move(group_id),
+            std::move(name));
       })
       .then([this](shared_consumer_t c) {
-          auto m_id = c->member_id();
+          auto name = c->name();
           _consumers.insert(std::move(c));
-          return m_id;
+          return name;
       });
 }
 
 ss::future<shared_consumer_t>
-client::get_consumer(const group_id& g_id, const member_id& m_id) {
-    if (auto c_it = _consumers.find(m_id); c_it != _consumers.end()) {
+client::get_consumer(const group_id& g_id, const member_id& name) {
+    if (auto c_it = _consumers.find(name); c_it != _consumers.end()) {
         return ss::make_ready_future<shared_consumer_t>(*c_it);
     }
     return ss::make_exception_future<shared_consumer_t>(
-      consumer_error(g_id, m_id, error_code::unknown_member_id));
+      consumer_error(g_id, name, error_code::unknown_member_id));
 }
 
 ss::future<>
-client::remove_consumer(const group_id& g_id, const member_id& m_id) {
-    return get_consumer(g_id, m_id).then([this](shared_consumer_t c) {
+client::remove_consumer(const group_id& g_id, const member_id& name) {
+    return get_consumer(g_id, name).then([this](shared_consumer_t c) {
         return c->leave().then([this, c](leave_group_response res) {
             _consumers.erase(c);
             if (res.data.error_code != error_code::none) {
@@ -222,33 +226,33 @@ client::remove_consumer(const group_id& g_id, const member_id& m_id) {
 
 ss::future<> client::subscribe_consumer(
   const group_id& g_id,
-  const member_id& m_id,
+  const member_id& name,
   std::vector<model::topic> topics) {
-    return get_consumer(g_id, m_id)
+    return get_consumer(g_id, name)
       .then([topics{std::move(topics)}](shared_consumer_t c) mutable {
           return c->subscribe(std::move(topics));
       });
 }
 
 ss::future<std::vector<model::topic>>
-client::consumer_topics(const group_id& g_id, const member_id& m_id) {
-    return get_consumer(g_id, m_id).then([](shared_consumer_t c) {
+client::consumer_topics(const group_id& g_id, const member_id& name) {
+    return get_consumer(g_id, name).then([](shared_consumer_t c) {
         return ss::make_ready_future<std::vector<model::topic>>(c->topics());
     });
 }
 
 ss::future<assignment>
-client::consumer_assignment(const group_id& g_id, const member_id& m_id) {
-    return get_consumer(g_id, m_id).then([](shared_consumer_t c) {
+client::consumer_assignment(const group_id& g_id, const member_id& name) {
+    return get_consumer(g_id, name).then([](shared_consumer_t c) {
         return ss::make_ready_future<assignment>(c->assignment());
     });
 }
 
 ss::future<offset_fetch_response> client::consumer_offset_fetch(
   const group_id& g_id,
-  const member_id& m_id,
+  const member_id& name,
   std::vector<offset_fetch_request_topic> topics) {
-    return get_consumer(g_id, m_id)
+    return get_consumer(g_id, name)
       .then([topics{std::move(topics)}](shared_consumer_t c) mutable {
           return c->offset_fetch(std::move(topics));
       });
@@ -256,9 +260,9 @@ ss::future<offset_fetch_response> client::consumer_offset_fetch(
 
 ss::future<offset_commit_response> client::consumer_offset_commit(
   const group_id& g_id,
-  const member_id& m_id,
+  const member_id& name,
   std::vector<offset_commit_request_topic> topics) {
-    return get_consumer(g_id, m_id)
+    return get_consumer(g_id, name)
       .then([topics{std::move(topics)}](shared_consumer_t c) mutable {
           return c->offset_commit(std::move(topics));
       });
@@ -266,10 +270,10 @@ ss::future<offset_commit_response> client::consumer_offset_commit(
 
 ss::future<kafka::fetch_response> client::consume(
   const group_id& g_id,
-  const member_id& m_id,
+  const member_id& name,
   std::chrono::milliseconds timeout,
   int32_t max_bytes) {
-    return get_consumer(g_id, m_id)
+    return get_consumer(g_id, name)
       .then([timeout, max_bytes](shared_consumer_t c) mutable {
           return c->consume(timeout, max_bytes);
       });

@@ -391,9 +391,12 @@ consumer::consume(std::chrono::milliseconds timeout, int32_t max_bytes) {
 }
 
 ss::future<shared_consumer_t> make_consumer(
-  brokers& brokers, shared_broker_t coordinator, group_id group_id) {
+  brokers& brokers,
+  shared_broker_t coordinator,
+  group_id group_id,
+  member_id name) {
     auto c = ss::make_lw_shared<consumer>(
-      brokers, std::move(coordinator), std::move(group_id));
+      brokers, std::move(coordinator), std::move(group_id), std::move(name));
     return c->join().then([c]() mutable { return std::move(c); });
 }
 
