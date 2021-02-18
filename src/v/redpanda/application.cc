@@ -27,6 +27,7 @@
 #include "platform/stop_signal.h"
 #include "raft/service.h"
 #include "redpanda/admin/api-doc/config.json.h"
+#include "redpanda/admin/api-doc/health.json.h"
 #include "redpanda/admin/api-doc/kafka.json.h"
 #include "redpanda/admin/api-doc/raft.json.h"
 #include "rpc/simple_protocol.h"
@@ -54,6 +55,31 @@
 #include <chrono>
 #include <exception>
 #include <vector>
+
+namespace {
+
+class health_handler final : public ss::httpd::handler_base {
+public:
+    explicit health_handler(bool& status)
+      : _status{status} {};
+
+    ss::future<std::unique_ptr<ss::reply>> handle(
+      const ss::sstring&,
+      std::unique_ptr<ss::request>,
+      std::unique_ptr<ss::reply> rep) override {
+        rep->set_status(
+          _status ? ss::httpd::reply::status_type::no_content
+                  : ss::httpd::reply::status_type::service_unavailable);
+        rep->done("json");
+        return ss::make_ready_future<std::unique_ptr<ss::reply>>(
+          std::move(rep));
+    }
+
+private:
+    bool& _status;
+};
+
+} // namespace
 
 application::application(ss::sstring logger_name)
   : _log(std::move(logger_name)){
@@ -222,6 +248,7 @@ void application::configure_admin_server() {
         return;
     }
     syschecks::systemd_message("constructing http server").get();
+    construct_service(_health_ctx).get();
     construct_service(_admin, ss::sstring("admin")).get();
     // configure admin API TLS
     if (conf.admin_api_tls().is_enabled()) {
@@ -278,6 +305,8 @@ void application::configure_admin_server() {
               rb->register_api_file(server._routes, "header");
               rb->register_api_file(server._routes, "config");
               rb->register_function(server._routes, insert_comma);
+              rb->register_api_file(server._routes, "health");
+              rb->register_function(server._routes, insert_comma);
               rb->register_api_file(server._routes, "raft");
               rb->register_function(server._routes, insert_comma);
               rb->register_api_file(server._routes, "kafka");
@@ -288,6 +317,7 @@ void application::configure_admin_server() {
                     config::shard_local_cfg().to_json(writer);
                     return ss::json::json_return_type(buf.GetString());
                 });
+              admin_register_health_routes(server);
               admin_register_raft_routes(server);
               admin_register_kafka_routes(server);
           })
@@ -659,7 +689,19 @@ void application::start() {
     }
 
     vlog(_log.info, "Successfully started Redpanda!");
+    _health_ctx.invoke_on_all([](health_context& ctx) { ctx.started = true; })
+      .get();
     syschecks::systemd_notify_ready().get();
+}
+
+void application::admin_register_health_routes(ss::http_server& server) {
+    auto make_handler = [this](bool health_context::*mem) {
+        // NOTE: this pointer will be owned by data member _routes of
+        // ss::httpd:server. seastar didn't use any unique ptr to express that.
+        return new health_handler(_health_ctx.local().*mem); // NOLINT
+    };
+    ss::httpd::health_json::health_startup.set(
+      server._routes, make_handler(&health_context::started));
 }
 
 void application::admin_register_raft_routes(ss::http_server& server) {

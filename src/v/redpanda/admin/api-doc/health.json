@@ -1,0 +1,14 @@
+"/v1/health/started": {
+  "get": {
+    "summary": "health check - startup",
+    "operationId": "health_startup",
+    "responses": {
+      "204": {
+        "description": "Server has started"
+      },
+      "503": {
+        "description": "Server has not started"
+      }
+    }
+  }
+}

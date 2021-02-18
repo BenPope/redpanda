@@ -33,6 +33,10 @@
 namespace po = boost::program_options; // NOLINT
 
 class application {
+    struct health_context {
+        bool started{false};
+    };
+
 public:
     int run(int, char**);
 
@@ -76,6 +80,7 @@ private:
     void validate_arguments(const po::variables_map&);
     void hydrate_config(const po::variables_map&);
 
+    void admin_register_health_routes(ss::http_server& server);
     void admin_register_raft_routes(ss::http_server& server);
     void admin_register_kafka_routes(ss::http_server& server);
 
@@ -106,6 +111,7 @@ private:
     ss::sharded<rpc::connection_cache> _raft_connection_cache;
     ss::sharded<kafka::group_manager> _group_manager;
     ss::sharded<rpc::server> _rpc;
+    ss::sharded<health_context> _health_ctx;
     ss::sharded<ss::http_server> _admin;
     ss::sharded<rpc::server> _kafka_server;
     ss::metrics::metric_groups _metrics;
