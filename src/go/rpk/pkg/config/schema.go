@@ -32,6 +32,7 @@ type RedpandaConfig struct {
 	Id                 int                  `yaml:"node_id" mapstructure:"node_id" json:"id"`
 	SeedServers        []SeedServer         `yaml:"seed_servers" mapstructure:"seed_servers" json:"seedServers"`
 	DeveloperMode      bool                 `yaml:"developer_mode" mapstructure:"developer_mode" json:"developerMode"`
+	Other map[string]interface{} `yaml:",inline" mapstructure:",remain"`
 }
 
 type SeedServer struct {
