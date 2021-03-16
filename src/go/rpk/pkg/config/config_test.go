@@ -820,7 +820,7 @@ redpanda:
     port: 9644
   admin_api_doc_dir: /usr/share/redpanda/admin-api-doc
   advertised_kafka_api:
-    address: 1.cluster.redpanda.io
+  - address: 1.cluster.redpanda.io
     port: 9092
   auto_create_topics_enabled: true
   data_directory: /var/lib/redpanda/data

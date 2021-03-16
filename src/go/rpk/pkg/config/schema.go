@@ -19,6 +19,7 @@ type Config struct {
 	ConfigFile   string         `yaml:"config_file" mapstructure:"config_file" json:"configFile"`
 	Redpanda     RedpandaConfig `yaml:"redpanda" mapstructure:"redpanda" json:"redpanda"`
 	Rpk          RpkConfig      `yaml:"rpk" mapstructure:"rpk" json:"rpk"`
+	Other map[string]interface{} `yaml:",inline" mapstructure:",remain"`
 }
 
 type RedpandaConfig struct {
