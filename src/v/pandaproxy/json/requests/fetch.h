@@ -80,7 +80,8 @@ public:
         for (auto& v : res) {
             if (v.partition_response->has_error()) {
                 error_body e{
-                  .error_code = ss::httpd::reply::status_type::not_found,
+                  .error_code = static_cast<error_code>(
+                    ss::httpd::reply::status_type::not_found),
                   .message{ss::sstring{
                     kafka::error_code_to_str(v.partition_response->error)}}};
                 rjson_serialize(w, e);

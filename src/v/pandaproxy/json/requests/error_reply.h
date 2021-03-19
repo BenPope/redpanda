@@ -22,7 +22,7 @@
 namespace pandaproxy::json {
 
 struct error_body {
-    ss::httpd::reply::status_type error_code;
+    error_code ec;
     ss::sstring message;
 };
 
@@ -43,7 +43,7 @@ inline void rjson_serialize(
   rapidjson::Writer<rapidjson::StringBuffer>& w, const error_body& v) {
     w.StartObject();
     w.Key("error_code");
-    ::json::rjson_serialize(w, v.error_code);
+    ::json::rjson_serialize(w, v.ec);
     w.Key("message");
     ::json::rjson_serialize(w, v.message);
     w.EndObject();
