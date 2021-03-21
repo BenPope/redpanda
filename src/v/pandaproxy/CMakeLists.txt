@@ -41,4 +41,5 @@ foreach(swagger_dep ${swagger_deps})
 endforeach()
 
 add_subdirectory(json)
+add_subdirectory(parsing)
 add_subdirectory(test)
