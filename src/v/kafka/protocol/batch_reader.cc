@@ -118,6 +118,9 @@ kafka_batch_adapter batch_reader::consume_batch() {
     const auto size_bytes = hdr.size_bytes();
     kafka_batch_adapter kba;
     kba.adapt(_buf.share(0, size_bytes));
+    if (kba.batch->header().attrs.is_control()) {
+        kba.batch.reset();
+    }
     _buf.trim_front(size_bytes);
     return kba;
 }

@@ -121,6 +121,19 @@ SEASTAR_THREAD_TEST_CASE(consumer_records_consume_batch) {
     BOOST_REQUIRE_EQUAL(last_offset, ctx.last_offset);
 }
 
+SEASTAR_THREAD_TEST_CASE(consumer_records_consume_config_batch) {
+    auto mem_res
+      = model::make_memory_record_batch_reader(
+          storage::test::make_random_batch(
+            model::offset{0}, 12, false, raft::configuration_batch_type))
+          .consume(kafka::kafka_batch_serializer{}, model::no_timeout)
+          .get();
+
+    auto crs = kafka::batch_reader(std::move(mem_res.data));
+    auto kba = crs.consume_batch();
+    BOOST_REQUIRE(!kba.batch);
+}
+
 SEASTAR_THREAD_TEST_CASE(consumer_records_consume_batch_fail_magic) {
     auto ctx = make_context(base_offset, few_batches);
     corrupt_offset<int32_t>(
