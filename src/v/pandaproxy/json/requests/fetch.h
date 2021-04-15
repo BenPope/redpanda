@@ -89,6 +89,10 @@ public:
             model::topic_partition_view tpv(v.partition->name, r.id);
             while (r.record_set && !r.record_set->empty()) {
                 auto adapter = r.record_set->consume_batch();
+                if (!adapter.batch) {
+                    continue;
+                }
+
                 auto rjs = rjson_serialize_impl<model::record>(
                   _fmt, tpv, adapter.batch->base_offset());
 
