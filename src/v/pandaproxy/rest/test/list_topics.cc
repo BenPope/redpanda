@@ -8,6 +8,7 @@
 // by the Apache License, Version 2.0
 
 #include "http/client.h"
+#include "pandaproxy/json/types.h"
 #include "pandaproxy/test/pandaproxy_fixture.h"
 #include "pandaproxy/test/utils.h"
 
@@ -48,6 +49,15 @@ FIXTURE_TEST(pandaproxy_list_topics, pandaproxy_test_fixture) {
         auto res = http_request(client, "/topics");
         BOOST_REQUIRE_EQUAL(
           res.headers.result(), boost::beast::http::status::ok);
-        BOOST_REQUIRE_EQUAL(res.body, R"(["t"])");
+        rapidjson::Document doc;
+        doc.Parse(res.body.data(), res.body.size());
+        BOOST_REQUIRE(!doc.HasParseError());
+        BOOST_REQUIRE(doc.IsArray());
+        BOOST_REQUIRE_EQUAL(
+          std::count_if(
+            doc.Begin(),
+            doc.End(),
+            [](const auto& elem) { return elem.IsString() && elem == "t"; }),
+          1);
     }
 }
