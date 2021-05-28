@@ -43,6 +43,7 @@ public:
     store& schema_store() { return _store; }
 
 private:
+    ss::future<> create_internal_topic();
     configuration _config;
     ss::semaphore _mem_sem;
     ss::gate _gate;
