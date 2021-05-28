@@ -105,8 +105,9 @@ class RedpandaService(Service):
         self.logger.info("Verifying storage is in expected state")
         storage = self.storage()
         for node in storage.nodes:
-            assert set(node.ns) == {"redpanda"}
-            assert set(node.ns["redpanda"].topics) == {"controller", "kvstore"}
+            assert set(node.ns).issuperset({"redpanda"})
+            assert set(node.ns["redpanda"].topics).issuperset(
+                {"controller", "kvstore"})
 
         self._create_initial_topics()
 
