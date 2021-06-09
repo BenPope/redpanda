@@ -11,15 +11,23 @@
 
 #pragma once
 
+#include "likely.h"
 #include "outcome.h"
 #include "pandaproxy/schema_registry/error.h"
 #include "pandaproxy/schema_registry/types.h"
+#include "seastarx.h"
+
+#include <seastar/core/shared_future.hh>
+#include <seastar/util/later.hh>
 
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
+
+#include <exception>
+#include <utility>
 
 namespace pandaproxy::schema_registry {
 
@@ -46,5 +54,40 @@ result<schema_definition> make_schema_definition(std::string_view sv) {
     return schema_definition{
       ss::sstring{str_buf.GetString(), str_buf.GetSize()}};
 }
+
+///\brief The first invocation of one_shot::operator()() will invoke func and
+/// wait for it to finish. Concurrent invocatons will also wait.
+///
+/// On success, all waiters will be allowed to continue. Successive invocations
+/// of one_shot::operator()() will return ss::now().
+///
+/// If func fails, waiters will receive the error, and one_shot will be reset.
+/// Successive calls to operator()() will restart the process.
+class one_shot {
+    enum class state { empty, started, available };
+
+public:
+    explicit one_shot(ss::noncopyable_function<ss::future<>()> func)
+      : _func{std::move(func)} {}
+    ss::future<> operator()() {
+        if (likely(_state == state::available)) {
+            return ss::now();
+        }
+        if (std::exchange(_state, state::started) == state::empty) {
+            _prom_started = {};
+            (void)_func().then_wrapped([this](ss::future<> f) {
+                _state = f.failed() ? state::empty : state::available;
+                f.failed() ? _prom_started.set_exception(f.get_exception())
+                           : _prom_started.set_value();
+            });
+        }
+        return _prom_started.get_shared_future();
+    }
+
+private:
+    ss::noncopyable_function<ss::future<>()> _func;
+    ss::shared_promise<> _prom_started{};
+    state _state{state::empty};
+};
 
 } // namespace pandaproxy::schema_registry
