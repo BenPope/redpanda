@@ -118,7 +118,7 @@ post_subject_versions(server::request_t rq, server::reply_t rp) {
     parse_accept_header(rq, rp);
     auto req = post_subject_versions_request{
       .sub = parse::request_param<subject>(*rq.req, "subject"),
-      .payload = ppj::rjson_parse(
+      .payload = co_await ppj::rjson_parse_async(
         rq.req->content.data(), post_subject_versions_request_handler<>{})};
     rq.req.reset();
 

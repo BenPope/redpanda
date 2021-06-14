@@ -50,8 +50,10 @@ SEASTAR_THREAD_TEST_CASE(test_post_subject_versions_parser) {
         .sub{pps::subject{"childSubject"}},
         .version{pps::schema_version{1}}}}};
 
-    auto result{ppj::rjson_parse(
-      payload.data(), pps::post_subject_versions_request_handler{})};
+    auto result = ppj::rjson_parse_async(
+                    payload.data(),
+                    pps::post_subject_versions_request_handler{})
+                    .get();
 
     BOOST_REQUIRE_EQUAL(expected.schema, result.schema);
     BOOST_REQUIRE(expected.type == result.type);
