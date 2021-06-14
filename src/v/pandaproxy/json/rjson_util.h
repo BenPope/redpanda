@@ -15,7 +15,10 @@
 #include "pandaproxy/json/types.h"
 #include "utils/concepts-enabled.h"
 
+#include <seastar/core/coroutine.hh>
+#include <seastar/core/future.hh>
 #include <seastar/core/sstring.hh>
+#include <seastar/core/std-coroutine.hh>
 
 #include <rapidjson/reader.h>
 #include <rapidjson/stream.h>
@@ -71,6 +74,29 @@ typename Handler::rjson_parse_result
         throw parse_error(reader.GetErrorOffset());
     }
     return std::move(handler.result);
+}
+
+template<typename Handler>
+CONCEPT(requires std::is_same_v<
+        decltype(std::declval<Handler>().result),
+        typename Handler::rjson_parse_result>)
+ss::future<typename Handler::rjson_parse_result> rjson_parse_async(
+  const char* const s, Handler handler) {
+    rapidjson::Reader reader;
+    rapidjson::StringStream ss(s);
+    reader.IterativeParseInit();
+    co_await ss::do_until(
+      [&]() {
+          return reader.IterativeParseComplete() || reader.HasParseError();
+      },
+      [&]() {
+          reader.IterativeParseNext<rapidjson::kParseDefaultFlags>(ss, handler);
+          return ss::make_ready_future<>();
+      });
+    if (reader.HasParseError()) {
+        throw parse_error(reader.GetErrorOffset());
+    }
+    co_return std::move(handler.result);
 }
 
 } // namespace pandaproxy::json
