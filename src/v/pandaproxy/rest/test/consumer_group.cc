@@ -85,8 +85,10 @@ FIXTURE_TEST(pandaproxy_consumer_group, pandaproxy_test_fixture) {
         BOOST_REQUIRE_EQUAL(
           res.headers.result(), boost::beast::http::status::ok);
 
-        auto res_data = ppj::rjson_parse(
-          res.body.data(), ppj::create_consumer_response_handler());
+        auto res_data = ppj::rjson_parse_async(
+                          res.body.data(),
+                          ppj::create_consumer_response_handler())
+                          .get();
         BOOST_REQUIRE_EQUAL(res_data.instance_id, "test_consumer");
         member_id = res_data.instance_id;
         BOOST_REQUIRE_EQUAL(

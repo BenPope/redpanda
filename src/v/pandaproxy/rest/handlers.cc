@@ -148,7 +148,7 @@ post_topics_name(server::request_t rq, server::reply_t rp) {
 
     auto topic = parse::request_param<model::topic>(*rq.req, "topic_name");
 
-    auto records = ppj::rjson_parse(
+    auto records = co_await ppj::rjson_parse_async(
       rq.req->content.data(), ppj::produce_request_handler(req_fmt));
 
     auto res = co_await rq.service().client().local().produce_records(
@@ -184,7 +184,7 @@ create_consumer(server::request_t rq, server::reply_t rp) {
     auto group_id = parse::request_param<kafka::group_id>(
       *rq.req, "group_name");
 
-    auto req_data = ppj::rjson_parse(
+    auto req_data = co_await ppj::rjson_parse_async(
       rq.req->content.data(), ppj::create_consumer_request_handler());
 
     if (req_data.format != "binary" && req_data.format != "json") {
@@ -258,7 +258,7 @@ subscribe_consumer(server::request_t rq, server::reply_t rp) {
     auto member_id = parse::request_param<kafka::member_id>(
       *rq.req, "instance");
 
-    auto req_data = ppj::rjson_parse(
+    auto req_data = co_await ppj::rjson_parse_async(
       rq.req->content.data(), ppj::subscribe_consumer_request_handler());
 
     auto handler =
@@ -334,8 +334,9 @@ get_consumer_offsets(server::request_t rq, server::reply_t rp) {
     auto group_id{parse::request_param<kafka::group_id>(*rq.req, "group_name")};
     auto member_id{parse::request_param<kafka::member_id>(*rq.req, "instance")};
 
-    auto req_data = ppj::partitions_request_to_offset_request(ppj::rjson_parse(
-      rq.req->content.data(), ppj::partitions_request_handler()));
+    auto req_data = ppj::partitions_request_to_offset_request(
+      co_await ppj::rjson_parse_async(
+        rq.req->content.data(), ppj::partitions_request_handler()));
 
     auto handler =
       [group_id,
@@ -374,7 +375,7 @@ post_consumer_offsets(server::request_t rq, server::reply_t rp) {
     auto req_data = rq.req->content.length() == 0
                       ? std::vector<kafka::offset_commit_request_topic>()
                       : ppj::partition_offsets_request_to_offset_commit_request(
-                        ppj::rjson_parse(
+                        co_await ppj::rjson_parse_async(
                           rq.req->content.data(),
                           ppj::partition_offsets_request_handler()));
 
