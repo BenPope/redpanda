@@ -189,6 +189,25 @@ struct schema_value {
     schema_id id;
     schema_definition schema;
     bool deleted{false};
+
+    friend bool operator==(const schema_value& lhs, const schema_value& rhs) {
+        return lhs.sub == rhs.sub && lhs.version == rhs.version
+               && lhs.type == rhs.type && lhs.id == rhs.id
+               && lhs.schema == rhs.schema && lhs.deleted == rhs.deleted;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const schema_value& v) {
+        fmt::print(
+          os,
+          "subject: {}, version: {}, type: {}, id: {}, schema: {}, deleted: {}",
+          v.sub,
+          v.version,
+          v.type,
+          v.id,
+          v.schema,
+          v.deleted);
+        return os;
+    }
 };
 
 inline void rjson_serialize(
