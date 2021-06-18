@@ -33,10 +33,30 @@
 namespace pandaproxy::schema_registry {
 
 using topic_key_magic = named_type<int32_t, struct topic_key_magic_tag>;
-using topic_key_type = named_type<ss::sstring, struct topic_key_type_tag>;
+enum class topic_key_type { noop = 0, schema, config };
+constexpr std::string_view to_string_view(topic_key_type kt) {
+    switch (kt) {
+    case topic_key_type::noop:
+        return "NOOP";
+    case topic_key_type::schema:
+        return "SCHEMA";
+    case topic_key_type::config:
+        return "CONFIG";
+    }
+    return "{invalid}";
+};
+template<>
+inline std::optional<topic_key_type>
+from_string_view<topic_key_type>(std::string_view sv) {
+    return string_switch<std::optional<topic_key_type>>(sv)
+      .match(to_string_view(topic_key_type::noop), topic_key_type::noop)
+      .match(to_string_view(topic_key_type::schema), topic_key_type::schema)
+      .match(to_string_view(topic_key_type::config), topic_key_type::config)
+      .default_match(std::nullopt);
+}
 
 struct schema_key {
-    topic_key_type keytype{"SCHEMA"};
+    static constexpr topic_key_type keytype{topic_key_type::schema};
     subject sub;
     schema_version version;
     topic_key_magic magic{1};
@@ -49,7 +69,7 @@ struct schema_key {
         fmt::print(
           os,
           "keytype: {}, subject: {}, version: {}, magic: {}",
-          v.keytype,
+          to_string_view(v.keytype),
           v.sub,
           v.version,
           v.magic);
@@ -62,7 +82,7 @@ inline void rjson_serialize(
   const schema_registry::schema_key& key) {
     w.StartObject();
     w.Key("keytype");
-    ::json::rjson_serialize(w, key.keytype);
+    ::json::rjson_serialize(w, to_string_view(key.keytype));
     w.Key("subject");
     ::json::rjson_serialize(w, key.sub());
     w.Key("version");
@@ -142,9 +162,9 @@ public:
         auto sv = std::string_view{str, len};
         switch (_state) {
         case state::keytype: {
-            result.keytype = topic_key_type{ss::sstring{sv}};
+            auto kt = from_string_view<topic_key_type>(sv);
             _state = state::object;
-            return true;
+            return kt.has_value() && result.keytype == *kt;
         }
         case state::subject: {
             result.sub = subject{ss::sstring{sv}};
@@ -417,7 +437,7 @@ struct consume_to_store {
 
     void operator()(model::record record) {
         auto key = schema_key_from_iobuf(record.release_key());
-        if (key.keytype == "SCHEMA") {
+        if (key.keytype == topic_key_type::schema) {
             vassert(key.magic == 1, "Schema key magic is unknown");
             auto val = schema_value_from_iobuf(record.release_value());
             vlog(
@@ -429,7 +449,8 @@ struct consume_to_store {
             vassert(res.id == val.id, "Schema_id mismatch");
             vassert(res.version == val.version, "Schema_version mismatch");
         } else {
-            vlog(plog.warn, "Ignoring keytype: {}", key.keytype);
+            vlog(
+              plog.warn, "Ignoring keytype: {}", to_string_view(key.keytype));
         }
     }
     void end_of_stream() {}
