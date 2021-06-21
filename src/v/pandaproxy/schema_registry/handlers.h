@@ -37,4 +37,7 @@ ss::future<ctx_server<service>::reply_t> post_subject_versions(
 ss::future<ctx_server<service>::reply_t> get_subject_versions_version(
   ctx_server<service>::request_t rq, ctx_server<service>::reply_t rp);
 
+ss::future<ctx_server<service>::reply_t> delete_subject(
+  ctx_server<service>::request_t rq, ctx_server<service>::reply_t rp);
+
 } // namespace pandaproxy::schema_registry
