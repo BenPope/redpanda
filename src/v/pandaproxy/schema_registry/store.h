@@ -112,6 +112,16 @@ public:
         return res;
     }
 
+    ///\brief Delete a subject.
+    result<std::vector<schema_version>> delete_subject(const subject& sub) {
+        auto versions = get_versions(sub);
+        if (versions.has_error()) {
+            return versions.error();
+        }
+        _subjects[sub].clear();
+        return versions;
+    }
+
 private:
     struct insert_schema_result {
         schema_id id;
