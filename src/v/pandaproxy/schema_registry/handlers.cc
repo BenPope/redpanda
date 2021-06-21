@@ -40,6 +40,7 @@ void parse_accept_header(const server::request_t& rq, server::reply_t& rp) {
     static const std::vector<ppj::serialization_format> headers{
       ppj::serialization_format::schema_registry_v1_json,
       ppj::serialization_format::schema_registry_json,
+      ppj::serialization_format::application_json,
       ppj::serialization_format::none};
     rp.mime_type = parse::accept_header(*rq.req, headers);
 }
@@ -47,7 +48,9 @@ void parse_accept_header(const server::request_t& rq, server::reply_t& rp) {
 void parse_content_type_header(const server::request_t& rq) {
     static const std::vector<ppj::serialization_format> headers{
       ppj::serialization_format::schema_registry_v1_json,
-      ppj::serialization_format::schema_registry_json};
+      ppj::serialization_format::schema_registry_json,
+      ppj::serialization_format::application_json,
+      ppj::serialization_format::none};
     parse::content_type_header(*rq.req, headers);
 }
 
