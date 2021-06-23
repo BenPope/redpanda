@@ -82,4 +82,21 @@ SEASTAR_THREAD_TEST_CASE(test_consume_to_store) {
       pps::config_key{subject0, magic1},
       pps::config_value{pps::compatibility_level::full});
     BOOST_REQUIRE_THROW(c(std::move(bad_config_magic)).get(), pps::exception);
+
+    // Test soft delete
+    BOOST_REQUIRE_EQUAL(s.get_subjects(pps::include_deleted::no).size(), 1);
+    BOOST_REQUIRE_EQUAL(s.get_subjects(pps::include_deleted::yes).size(), 1);
+    auto delete_sub = pps::make_delete_subject_batch(subject0, version1);
+    BOOST_REQUIRE_NO_THROW(c(std::move(delete_sub)).get());
+    BOOST_REQUIRE_EQUAL(s.get_subjects(pps::include_deleted::no).size(), 0);
+    BOOST_REQUIRE_EQUAL(s.get_subjects(pps::include_deleted::yes).size(), 1);
+
+    // Test permanent delete
+    auto v_res = s.get_versions(subject0, pps::include_deleted::yes);
+    BOOST_REQUIRE_EQUAL(v_res.value().size(), 1);
+    auto perm_delete_sub = pps::make_delete_subject_permanently_batch(
+      subject0, v_res.value());
+    BOOST_REQUIRE_NO_THROW(c(std::move(perm_delete_sub)).get());
+    v_res = s.get_versions(subject0, pps::include_deleted::yes);
+    BOOST_REQUIRE(v_res.value().empty());
 }
