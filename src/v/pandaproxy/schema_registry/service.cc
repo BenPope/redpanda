@@ -29,6 +29,8 @@
 #include <seastar/core/std-coroutine.hh>
 #include <seastar/http/api_docs.hh>
 
+#include <chrono>
+
 namespace pandaproxy::schema_registry {
 
 using server = ctx_server<service>;
@@ -151,28 +153,14 @@ ss::future<> service::create_internal_topic() {
 }
 
 ss::future<> service::fetch_internal_topic() {
-    auto offset_res = co_await _client.local().list_offsets(
-      model::schema_registry_internal_tp);
-    const auto& topics = offset_res.data.topics;
-    if (topics.size() != 1 || topics.front().partitions.size() != 1) {
-        auto ec = kafka::error_code::unknown_topic_or_partition;
-        throw kafka::exception(ec, make_error_code(ec).message());
-    }
-    const auto& partition = topics.front().partitions.front();
-    if (partition.error_code != kafka::error_code::none) {
-        auto ec = partition.error_code;
-        throw kafka::exception(ec, make_error_code(ec).message());
-    }
-
-    auto max_offset = partition.offset;
-    vlog(plog.debug, "Schema registry: _schemas max_offset: {}", max_offset);
-
-    co_await make_client_fetch_batch_reader(
-      _client.local(),
-      model::schema_registry_internal_tp,
-      model::offset{0},
-      max_offset)
-      .consume(consume_to_store{_store}, model::no_timeout);
+    _client.local().config().consumer_request_timeout.set_value(
+      std::chrono::milliseconds{5000});
+    auto cbr = co_await make_client_consumer_batch_reader(
+      _client.local(), model::schema_registry_internal_tp);
+    // TODO BP: Cancellation
+    (void)std::move(cbr.rdr).consume(
+      consume_to_store{_store}, model::no_timeout);
+    co_await std::move(cbr.caught_up);
 }
 
 service::service(
