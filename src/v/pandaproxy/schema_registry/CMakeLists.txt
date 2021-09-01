@@ -17,6 +17,7 @@ v_cc_library(
     seq_writer.cc
     sharded_store.cc
     avro.cc
+    protobuf.cc
   DEPS
     v::pandaproxy_common
     v::pandaproxy_parsing
@@ -26,6 +27,8 @@ v_cc_library(
     v::ssx
     v::utils
     avrocpp_s
+    protobufd
+    protocd
   )
 
 add_dependencies(v_pandaproxy_schema_registry schema_registry_swagger)
