@@ -18,6 +18,7 @@
 
 #include <seastar/core/sstring.hh>
 
+#include <fmt/core.h>
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/reader.h>
 #include <rapidjson/stream.h>
@@ -70,7 +71,10 @@ typename Handler::rjson_parse_result
     rapidjson::Reader reader;
     rapidjson::StringStream ss(s);
     if (!reader.Parse(ss, handler)) {
-        throw parse_error(reader.GetErrorOffset());
+        throw parse_error(fmt::format(
+          "parse error at offset {}, msg: {}",
+          reader.GetErrorOffset(),
+          reader.GetParseErrorCode()));
     }
     return std::move(handler.result);
 }
