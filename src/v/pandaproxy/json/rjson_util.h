@@ -71,10 +71,7 @@ typename Handler::rjson_parse_result
     rapidjson::Reader reader;
     rapidjson::StringStream ss(s);
     if (!reader.Parse(ss, handler)) {
-        throw parse_error(fmt::format(
-          "parse error at offset {}, msg: {}",
-          reader.GetErrorOffset(),
-          reader.GetParseErrorCode()));
+        throw parse_error(reader.GetErrorOffset());
     }
     return std::move(handler.result);
 }
