@@ -11,11 +11,28 @@
 
 #pragma once
 
+#include "pandaproxy/json/rjson_util.h"
 #include "pandaproxy/schema_registry/errors.h"
 #include "pandaproxy/schema_registry/types.h"
 
 namespace pandaproxy::schema_registry {
 
-result<void> validate(std::string_view def, schema_type type);
+///\brief Convert the schema to a string suitable for reparsing.
+ss::sstring to_string(const schema_definition& def);
+
+///\brief Construct a schema in the native format
+result<schema_definition>
+make_schema_definition(const raw_schema_definition& def);
+
+///\brief Provide a minimal check and minify the input
+result<raw_schema_definition> sanitize(const raw_schema_definition& def);
+
+schema_type get_schema_type(const schema_definition& def);
+
+bool check_compatible(
+  const schema_definition& lhs, const schema_definition& rhs);
+
+///\brief Check the schema parses with the native format
+result<schema_definition> validate(schema_definition def);
 
 } // namespace pandaproxy::schema_registry

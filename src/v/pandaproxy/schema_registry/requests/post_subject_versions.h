@@ -13,6 +13,7 @@
 
 #include "pandaproxy/json/rjson_parse.h"
 #include "pandaproxy/json/rjson_util.h"
+#include "pandaproxy/schema_registry/schema_util.h"
 #include "pandaproxy/schema_registry/types.h"
 #include "pandaproxy/schema_registry/util.h"
 #include "seastarx.h"
@@ -31,7 +32,6 @@ struct post_subject_versions_request {
 
     struct body {
         schema_definition schema{invalid_schema_definition};
-        schema_type type{schema_type::avro};
         std::vector<schema_reference> references;
     };
 
@@ -124,18 +124,15 @@ public:
         auto sv = std::string_view{str, len};
         switch (_state) {
         case state::schema: {
-            auto def = make_schema_definition<Encoding>(sv);
-            if (!def) {
-                return false;
-            }
-            result.schema = std::move(def).value();
+            std::get<raw_schema_definition>(result.schema).def
+              = raw_schema_definition_str{ss::sstring{sv}};
             _state = state::record;
             return true;
         }
         case state::schema_type: {
             auto type = from_string_view<schema_type>(sv);
             if (type.has_value()) {
-                result.type = *type;
+                std::get<raw_schema_definition>(result.schema).type = *type;
                 _state = state::record;
             }
             return type.has_value();
@@ -187,7 +184,13 @@ public:
         switch (_state) {
         case state::record: {
             _state = state::empty;
-            return !result.schema().empty();
+            auto& raw_schema = std::get<raw_schema_definition>(result.schema);
+            auto sanitized = sanitize(raw_schema);
+            if (sanitized.has_error()) {
+                return false;
+            }
+            result.schema = sanitized.assume_value();
+            return true;
         }
         case state::reference: {
             _state = state::references;

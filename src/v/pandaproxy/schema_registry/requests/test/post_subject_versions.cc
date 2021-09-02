@@ -23,9 +23,10 @@ namespace pps = pandaproxy::schema_registry;
 
 SEASTAR_THREAD_TEST_CASE(test_post_subject_versions_parser) {
     const ss::sstring escaped_schema_def{
-      R"({\n\"type\": \"record\",\n\"name\": \"test\",\n\"fields\":\n  [\n    {\n      \"type\": \"string\",\n      \"name\": \"field1\"\n    },\n    {\n      \"type\": \"com.acme.Referenced\",\n      \"name\": \"int\"\n    }\n  ]\n})"};
-    const ss::sstring expected_schema_def{
-      R"({"type":"record","name":"test","fields":[{"type":"string","name":"field1"},{"type":"com.acme.Referenced","name":"int"}]})"};
+      R"({\n\"type\": \"record\",\n\"name\": \"test\",\n\"fields\":\n  [\n    {\n      \"type\": \"string\",\n      \"name\": \"field1\"\n    }\n  ]\n})"};
+    const pps::raw_schema_definition expected_schema_def{
+      R"({"type":"record","name":"test","fields":[{"type":"string","name":"field1"}]})",
+      pps::schema_type::avro};
 
     const ss::sstring payload{
       R"(
@@ -44,7 +45,6 @@ SEASTAR_THREAD_TEST_CASE(test_post_subject_versions_parser) {
     const pps::subject sub{"test_subject"};
     const pps::post_subject_versions_request::body expected{
       .schema{pps::schema_definition{expected_schema_def}},
-      .type = pps::schema_type::avro,
       .references{pps::post_subject_versions_request::schema_reference{
         .name{"com.acme.Referenced"},
         .sub{pps::subject{"childSubject"}},
@@ -54,6 +54,7 @@ SEASTAR_THREAD_TEST_CASE(test_post_subject_versions_parser) {
       payload.data(), pps::post_subject_versions_request_handler{})};
 
     BOOST_REQUIRE_EQUAL(expected.schema, result.schema);
-    BOOST_REQUIRE(expected.type == result.type);
+    BOOST_REQUIRE(
+      get_schema_type(expected.schema) == get_schema_type(result.schema));
     BOOST_REQUIRE(expected.references.size() == result.references.size());
 }

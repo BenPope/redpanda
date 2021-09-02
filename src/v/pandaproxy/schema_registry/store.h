@@ -13,6 +13,7 @@
 
 #include "pandaproxy/logger.h"
 #include "pandaproxy/schema_registry/errors.h"
+#include "pandaproxy/schema_registry/schema_util.h"
 #include "pandaproxy/schema_registry/types.h"
 
 #include <absl/container/btree_map.h>
@@ -51,8 +52,8 @@ public:
     /// version.
     ///
     /// return the schema_version and schema_id, and whether it's new.
-    insert_result insert(subject sub, schema_definition def, schema_type type) {
-        auto id = insert_schema(std::move(def), type).id;
+    insert_result insert(subject sub, schema_definition def) {
+        auto id = insert_schema(std::move(def)).id;
         auto [version, inserted] = insert_subject(std::move(sub), id);
         return {version, id, inserted};
     }
@@ -63,16 +64,15 @@ public:
         if (it == _schemas.end()) {
             return not_found(id);
         }
-        return {it->first, it->second.type, it->second.definition};
+        return {it->first, it->second.definition};
     }
 
     ///\brief Return the id of the schema, if it already exists.
-    std::optional<schema_id>
-    get_schema_id(const schema_definition& def, schema_type type) const {
+    std::optional<schema_id> get_schema_id(const schema_definition& def) const {
         const auto s_it = std::find_if(
           _schemas.begin(), _schemas.end(), [&](const auto& s) {
               const auto& entry = s.second;
-              return type == entry.type && def == entry.definition;
+              return def == entry.definition;
           });
         return s_it == _schemas.end() ? std::optional<schema_id>{}
                                       : s_it->first;
@@ -116,7 +116,6 @@ public:
           .sub = sub,
           .version = v_id.version,
           .id = v_id.id,
-          .type = s.type,
           .definition = std::move(s).definition,
           .deleted = v_id.deleted};
     }
@@ -380,12 +379,11 @@ public:
         schema_id id;
         bool inserted;
     };
-    insert_schema_result
-    insert_schema(schema_definition def, schema_type type) {
+    insert_schema_result insert_schema(schema_definition def) {
         const auto s_it = std::find_if(
           _schemas.begin(), _schemas.end(), [&](const auto& s) {
               const auto& entry = s.second;
-              return type == entry.type && def == entry.definition;
+              return def == entry.definition;
           });
         if (s_it != _schemas.end()) {
             return {s_it->first, false};
@@ -393,13 +391,12 @@ public:
 
         const auto id = _schemas.empty() ? schema_id{1}
                                          : std::prev(_schemas.end())->first + 1;
-        auto [_, inserted] = _schemas.try_emplace(id, type, std::move(def));
+        auto [_, inserted] = _schemas.try_emplace(id, std::move(def));
         return {id, inserted};
     }
 
-    bool upsert_schema(schema_id id, schema_definition def, schema_type type) {
-        return _schemas.insert_or_assign(id, schema_entry(type, std::move(def)))
-          .second;
+    bool upsert_schema(schema_id id, schema_definition def) {
+        return _schemas.insert_or_assign(id, std::move(def)).second;
     }
 
     struct insert_subject_result {
@@ -467,11 +464,9 @@ public:
 
 private:
     struct schema_entry {
-        schema_entry(schema_type type, schema_definition definition)
-          : type{type}
-          , definition{std::move(definition)} {}
+        schema_entry(schema_definition definition)
+          : definition{std::move(definition)} {}
 
-        schema_type type;
         schema_definition definition;
     };
 
