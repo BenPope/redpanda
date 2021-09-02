@@ -11,11 +11,23 @@
 
 #pragma once
 
+#include "pandaproxy/schema_registry/avro.h"
 #include "pandaproxy/schema_registry/errors.h"
+#include "pandaproxy/schema_registry/protobuf.h"
 #include "pandaproxy/schema_registry/types.h"
 
 namespace pandaproxy::schema_registry {
 
-result<void> validate(std::string_view def, schema_type type);
+ss::sstring to_string(const schema_definition& def);
+
+result<schema_definition>
+make_schema_definition(const raw_schema_definition& def, schema_type type);
+
+schema_type get_schema_type(const schema_definition& def);
+
+bool check_compatible(
+  const schema_definition& lhs, const schema_definition& rhs);
+
+result<schema_definition> validate(schema_definition def);
 
 } // namespace pandaproxy::schema_registry

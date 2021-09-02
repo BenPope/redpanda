@@ -17,15 +17,7 @@
 
 #include <seastar/core/sstring.hh>
 
-namespace google::protobuf {
-class Descriptor;
-}
-
 namespace pandaproxy::schema_registry {
-
-using protobuf_schema_definition = named_type<
-  const google::protobuf::Descriptor*,
-  struct protobuf_schema_definition_tag>;
 
 result<protobuf_schema_definition>
 make_protobuf_schema_definition(std::string_view sv);

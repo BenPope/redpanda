@@ -14,19 +14,7 @@
 #include "pandaproxy/schema_registry/errors.h"
 #include "pandaproxy/schema_registry/types.h"
 
-#include <avro/ValidSchema.hh>
-
 namespace pandaproxy::schema_registry {
-
-struct avro_schema_definition
-  : named_type<avro::ValidSchema, struct avro_schema_definition_tag> {
-    using named_type<avro::ValidSchema, struct avro_schema_definition_tag>::
-      named_type;
-
-    explicit operator schema_definition() const {
-        return schema_definition{_value.toJson(false)};
-    }
-};
 
 result<avro_schema_definition> make_avro_schema_definition(std::string_view sv);
 

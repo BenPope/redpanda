@@ -9,6 +9,7 @@
 
 #include "pandaproxy/schema_registry/requests/post_subject_versions.h"
 
+#include "pandaproxy/schema_registry/avro.h"
 #include "seastarx.h"
 
 #include <seastar/testing/thread_test_case.hh>
@@ -23,9 +24,9 @@ namespace pps = pandaproxy::schema_registry;
 
 SEASTAR_THREAD_TEST_CASE(test_post_subject_versions_parser) {
     const ss::sstring escaped_schema_def{
-      R"({\n\"type\": \"record\",\n\"name\": \"test\",\n\"fields\":\n  [\n    {\n      \"type\": \"string\",\n      \"name\": \"field1\"\n    },\n    {\n      \"type\": \"com.acme.Referenced\",\n      \"name\": \"int\"\n    }\n  ]\n})"};
+      R"({\n\"type\": \"record\",\n\"name\": \"test\",\n\"fields\":\n  [\n    {\n      \"type\": \"string\",\n      \"name\": \"field1\"\n    }\n  ]\n})"};
     const ss::sstring expected_schema_def{
-      R"({"type":"record","name":"test","fields":[{"type":"string","name":"field1"},{"type":"com.acme.Referenced","name":"int"}]})"};
+      R"({"type":"record","name":"test","fields":[{"type":"string","name":"field1"}]})"};
 
     const ss::sstring payload{
       R"(
@@ -43,8 +44,7 @@ SEASTAR_THREAD_TEST_CASE(test_post_subject_versions_parser) {
 })"};
     const pps::subject sub{"test_subject"};
     const pps::post_subject_versions_request::body expected{
-      .schema{pps::schema_definition{expected_schema_def}},
-      .type = pps::schema_type::avro,
+      .schema{pps::make_avro_schema_definition(expected_schema_def).value()},
       .references{pps::post_subject_versions_request::schema_reference{
         .name{"com.acme.Referenced"},
         .sub{pps::subject{"childSubject"}},
@@ -53,7 +53,6 @@ SEASTAR_THREAD_TEST_CASE(test_post_subject_versions_parser) {
     auto result{ppj::rjson_parse(
       payload.data(), pps::post_subject_versions_request_handler{})};
 
-    BOOST_REQUIRE_EQUAL(expected.schema, result.schema);
-    BOOST_REQUIRE(expected.type == result.type);
+    BOOST_REQUIRE_EQUAL(to_string(expected.schema), to_string(result.schema));
     BOOST_REQUIRE(expected.references.size() == result.references.size());
 }

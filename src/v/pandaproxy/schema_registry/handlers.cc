@@ -266,7 +266,7 @@ post_subject(server::request_t rq, server::reply_t rp) {
     rq.req.reset();
 
     auto sub_schema = co_await rq.service().schema_store().has_schema(
-      req.sub, req.payload.schema, req.payload.type);
+      req.sub, req.payload.schema);
 
     auto json_rslt{json::rjson_serialize(post_subject_versions_version_response{
       .sub{std::move(sub_schema.sub)},
@@ -290,7 +290,7 @@ post_subject_versions(server::request_t rq, server::reply_t rp) {
     rq.req.reset();
 
     auto schema_id = co_await rq.service().writer().write_subject_version(
-      req.sub, req.payload.schema, req.payload.type);
+      req.sub, req.payload.schema);
 
     auto json_rslt{
       json::rjson_serialize(post_subject_versions_response{.id{schema_id}})};
@@ -365,7 +365,7 @@ ss::future<ctx_server<service>::reply_t> get_subject_versions_version_schema(
     auto get_res = co_await rq.service().schema_store().get_subject_schema(
       sub, version, inc_del);
 
-    rp.rep->write_body("json", get_res.definition());
+    rp.rep->write_body("json", to_string(get_res.definition));
     co_return rp;
 }
 
@@ -473,7 +473,7 @@ compatibility_subject_version(server::request_t rq, server::reply_t rp) {
 
     auto get_res = co_await get_or_load(rq, [&rq, &req, version]() {
         return rq.service().schema_store().is_compatible(
-          req.sub, version, req.payload.schema, req.payload.type);
+          req.sub, version, req.payload.schema);
     });
 
     auto json_rslt{

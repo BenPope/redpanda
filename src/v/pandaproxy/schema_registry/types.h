@@ -19,11 +19,16 @@
 #include <seastar/core/sstring.hh>
 #include <seastar/util/bool_class.hh>
 
+#include <avro/ValidSchema.hh>
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
 #include <type_traits>
+
+namespace google::protobuf {
+class FileDescriptor;
+}
 
 namespace pandaproxy::schema_registry {
 
@@ -69,11 +74,45 @@ inline std::ostream& operator<<(std::ostream& os, const schema_type& v) {
 using subject = named_type<ss::sstring, struct subject_tag>;
 static const subject invalid_subject{};
 
+using raw_schema_definition_str
+  = named_type<ss::sstring, struct raw_schema_definition_tag>;
+
+struct raw_schema_definition {
+    raw_schema_definition_str definition;
+    schema_type type{schema_type::avro};
+    bool friend operator==(
+      const raw_schema_definition& lhs, const raw_schema_definition& rhs) {
+        return lhs.type == rhs.type && lhs.definition == rhs.definition;
+    }
+};
+static const raw_schema_definition invalid_schema_definition{};
+
+struct avro_schema_definition
+  : named_type<avro::ValidSchema, struct avro_schema_definition_tag> {
+    using named_type<avro::ValidSchema, struct avro_schema_definition_tag>::
+      named_type;
+
+    explicit operator raw_schema_definition() const {
+        return raw_schema_definition{
+          .definition{raw_schema_definition_str{_value.toJson(false)}},
+          .type = schema_type::avro};
+    }
+};
+
+using protobuf_schema_definition = named_type<
+  const google::protobuf::FileDescriptor*,
+  struct protobuf_schema_definition_tag>;
+
 ///\brief The definition of the schema.
 ///
 /// TODO(Ben): Make this cheap to copy
-using schema_definition = named_type<ss::sstring, struct schema_definition_tag>;
-static const schema_definition invalid_schema_definition{};
+using schema_definition = std::variant<
+  raw_schema_definition,
+  avro_schema_definition,
+  protobuf_schema_definition>;
+
+std::ostream& operator<<(std::ostream& os, const schema_definition& def);
+bool operator==(const schema_definition&, const schema_definition&);
 
 ///\brief The version of the schema registered with a subject.
 ///
@@ -144,13 +183,11 @@ struct seq_marker {
 
 ///\brief Complete description of a schema.
 struct schema {
-    schema(schema_id id, schema_type type, schema_definition definition)
+    schema(schema_id id, schema_definition definition)
       : id{id}
-      , type{type}
       , definition{std::move(definition)} {}
 
     schema_id id;
-    schema_type type;
     schema_definition definition;
 };
 
@@ -180,8 +217,7 @@ struct subject_schema {
     subject sub{invalid_subject};
     schema_version version{invalid_schema_version};
     schema_id id{invalid_schema_id};
-    schema_type type{schema_type::avro};
-    schema_definition definition{invalid_schema_definition};
+    schema_definition definition;
     is_deleted deleted{false};
 };
 

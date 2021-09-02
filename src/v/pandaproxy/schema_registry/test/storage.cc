@@ -12,6 +12,7 @@
 #include "pandaproxy/json/rjson_parse.h"
 #include "pandaproxy/json/rjson_util.h"
 #include "pandaproxy/schema_registry/error.h"
+#include "pandaproxy/schema_registry/schema_util.h"
 #include "pandaproxy/schema_registry/types.h"
 #include "pandaproxy/schema_registry/util.h"
 
@@ -49,10 +50,11 @@ constexpr std::string_view avro_schema_value_sv{
 const pps::schema_value avro_schema_value{
   .sub{pps::subject{"my-kafka-value"}},
   .version{pps::schema_version{1}},
-  .type = pps::schema_type::avro,
   .id{pps::schema_id{1}},
-  .schema{pps::schema_definition{R"({"type":"string"})"}},
+  .schema{pps::make_avro_schema_definition(R"({"type":"string"})").value()},
   .deleted = pps::is_deleted::yes};
+constexpr std::string_view avro_schema_canonical_sv{
+  R"({"subject":"my-kafka-value","version":1,"id":1,"schema":"\"string\"","deleted":true})"};
 
 constexpr std::string_view config_key_sv{
   R"({
@@ -122,10 +124,10 @@ BOOST_AUTO_TEST_CASE(test_storage_serde) {
     {
         auto val = ppj::rjson_parse(
           avro_schema_value_sv.data(), pps::schema_value_handler<>{});
-        BOOST_CHECK_EQUAL(avro_schema_value, val);
+        BOOST_CHECK_EQUAL(avro_schema_value.schema, val.schema);
 
         auto str = ppj::rjson_serialize(avro_schema_value);
-        BOOST_CHECK_EQUAL(str, ppj::minify(avro_schema_value_sv));
+        BOOST_CHECK_EQUAL(str, avro_schema_canonical_sv);
     }
 
     {

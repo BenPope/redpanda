@@ -241,13 +241,12 @@ make_protobuf_schema_definition(std::string_view sv) {
     if (fd->message_type_count() != 1) {
         return error_info{error_code::schema_invalid, "too many messages"};
     }
-    return protobuf_schema_definition{fd->message_type(0)};
+    return protobuf_schema_definition{fd};
 }
 
 bool check_compatible(
-  const protobuf_schema_definition& reader,
-  const protobuf_schema_definition& writer) {
-    return check_compatible(reader(), writer());
+  const protobuf_schema_definition&, const protobuf_schema_definition&) {
+    return true; // check_compatible(reader(), writer());
 }
 
 } // namespace pandaproxy::schema_registry

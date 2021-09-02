@@ -38,7 +38,7 @@ namespace pandaproxy::schema_registry {
 ///
 /// Returns error_code::schema_invalid on failure
 template<typename Encoding>
-result<schema_definition> make_schema_definition(std::string_view sv) {
+result<raw_schema_definition> make_json_schema_definition(std::string_view sv) {
     // Validate and minify
     // TODO (Ben): Minify. e.g.:
     // "schema": "{\"type\": \"string\"}" -> "schema": "\"string\""
@@ -56,8 +56,8 @@ result<schema_definition> make_schema_definition(std::string_view sv) {
     str_buf.Reserve(sv.size());
     rapidjson::Writer<rapidjson::StringBuffer> w{str_buf};
     doc.Accept(w);
-    return schema_definition{
-      ss::sstring{str_buf.GetString(), str_buf.GetSize()}};
+    return raw_schema_definition{
+      .definition{ss::sstring{str_buf.GetString(), str_buf.GetSize()}}};
 }
 
 ///\brief The first invocation of one_shot::operator()() will invoke func and
