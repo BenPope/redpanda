@@ -16,8 +16,23 @@
 
 namespace pandaproxy::schema_registry {
 
-result<void> validate(std::string_view def, schema_type type);
+///\brief Construct a schema in the native format
+result<schema_definition>
+make_schema_definition(const raw_schema_definition& def);
 
-result<schema_definition> sanitize(schema_definition def, schema_type type);
+///\brief Get the schema_type of the schema_definition.
+schema_type get_schema_type(const schema_definition& def);
+
+///\brief Convert the schema to a string suitable for reparsing.
+ss::sstring to_string(const schema_definition& def);
+
+///\brief Check the schema parses with the native format
+result<schema_definition> validate(schema_definition def);
+
+///\brief Provide a minimal check and minify the input
+result<raw_schema_definition> sanitize(raw_schema_definition def);
+
+bool check_compatible(
+  const schema_definition& lhs, const schema_definition& rhs);
 
 } // namespace pandaproxy::schema_registry

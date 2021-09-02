@@ -35,9 +35,9 @@ namespace pps = pandaproxy::schema_registry;
 constexpr std::string_view sv_string_def0{R"({"type":"string"})"};
 constexpr std::string_view sv_int_def0{R"({"type": "int"})"};
 const pps::schema_definition string_def0{
-  pps::make_schema_definition<rapidjson::UTF8<>>(sv_string_def0).value()};
+  pps::raw_schema_definition{sv_string_def0, pps::schema_type::avro}};
 const pps::schema_definition int_def0{
-  pps::make_schema_definition<rapidjson::UTF8<>>(sv_int_def0).value()};
+  pps::raw_schema_definition{sv_int_def0, pps::schema_type::avro}};
 const pps::subject subject0{"subject0"};
 constexpr pps::topic_key_magic magic0{0};
 constexpr pps::topic_key_magic magic1{1};
@@ -105,8 +105,7 @@ SEASTAR_THREAD_TEST_CASE(test_consume_to_store) {
 
     auto good_schema_1 = pps::as_record_batch(
       pps::schema_key{sequence, node_id, subject0, version0, magic1},
-      pps::schema_value{
-        subject0, version0, pps::schema_type::avro, id0, string_def0});
+      pps::schema_value{subject0, version0, id0, string_def0});
     BOOST_REQUIRE_NO_THROW(c(std::move(good_schema_1)).get());
 
     auto s_res = s.get_subject_schema(
@@ -116,8 +115,7 @@ SEASTAR_THREAD_TEST_CASE(test_consume_to_store) {
 
     auto bad_schema_magic = pps::as_record_batch(
       pps::schema_key{sequence, node_id, subject0, version0, magic2},
-      pps::schema_value{
-        subject0, version0, pps::schema_type::avro, id0, string_def0});
+      pps::schema_value{subject0, version0, id0, string_def0});
     BOOST_REQUIRE_THROW(c(std::move(bad_schema_magic)).get(), pps::exception);
 
     BOOST_REQUIRE(
