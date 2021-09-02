@@ -49,10 +49,10 @@ ss::future<> sharded_store::start(ss::smp_service_group sg) {
 
 ss::future<> sharded_store::stop() { return _store.stop(); }
 
-ss::future<sharded_store::insert_result> sharded_store::project_ids(
-  subject sub, schema_definition def, schema_type type) {
+ss::future<sharded_store::insert_result>
+sharded_store::project_ids(subject sub, schema_definition def) {
     // Validate the schema (may throw)
-    validate(def(), type).value();
+    validate(def).value();
 
     // Check compatibility
     std::vector<schema_version> versions;
@@ -64,7 +64,7 @@ ss::future<sharded_store::insert_result> sharded_store::project_ids(
         }
     }
     if (!versions.empty()) {
-        auto compat = co_await is_compatible(sub, versions.back(), def, type);
+        auto compat = co_await is_compatible(sub, versions.back(), def);
         if (!compat) {
             throw exception(
               error_code::schema_incompatible,
@@ -76,7 +76,7 @@ ss::future<sharded_store::insert_result> sharded_store::project_ids(
     }
 
     // Figure out if the definition already exists
-    auto map = [&def, type](store& s) { return s.get_schema_id(def, type); };
+    auto map = [&def](store& s) { return s.get_schema_id(def); };
     auto reduce = [](
                     std::optional<schema_id> acc,
                     std::optional<schema_id> s_id) { return acc ? acc : s_id; };
@@ -102,19 +102,18 @@ ss::future<bool> sharded_store::upsert(
   seq_marker marker,
   subject sub,
   schema_definition def,
-  schema_type type,
   schema_id id,
   schema_version version,
   is_deleted deleted) {
-    co_await upsert_schema(id, std::move(def), type);
+    co_await upsert_schema(id, std::move(def));
     co_return co_await upsert_subject(marker, sub, version, id, deleted);
 }
 
-ss::future<subject_schema> sharded_store::has_schema(
-  subject sub, schema_definition def, schema_type type) {
+ss::future<subject_schema>
+sharded_store::has_schema(subject sub, schema_definition def) {
     auto versions = co_await get_versions(sub, include_deleted::no);
 
-    if (validate(def(), type).has_error()) {
+    if (validate(def).has_error()) {
         throw as_exception(invalid_subject_schema(sub));
     }
 
@@ -176,7 +175,6 @@ ss::future<subject_schema> sharded_store::get_subject_schema(
       .sub = sub,
       .version = v_id.version,
       .id = v_id.id,
-      .type = s.type,
       .definition = std::move(s.definition),
       .deleted = v_id.deleted};
 }
@@ -302,16 +300,11 @@ ss::future<bool> sharded_store::clear_compatibility(const subject& sub) {
     co_return cleared.value();
 }
 
-ss::future<bool> sharded_store::upsert_schema(
-  schema_id id, schema_definition def, schema_type type) {
+ss::future<bool>
+sharded_store::upsert_schema(schema_id id, schema_definition def) {
     co_await maybe_update_max_schema_id(id);
     co_return co_await _store.invoke_on(
-      shard_for(id),
-      _smp_opts,
-      &store::upsert_schema,
-      id,
-      std::move(def),
-      type);
+      shard_for(id), _smp_opts, &store::upsert_schema, id, std::move(def));
 }
 
 ss::future<sharded_store::insert_subject_result>
@@ -367,8 +360,7 @@ ss::future<> sharded_store::maybe_update_max_schema_id(schema_id id) {
 ss::future<bool> sharded_store::is_compatible(
   const subject& sub,
   schema_version version,
-  const schema_definition& new_schema,
-  schema_type new_schema_type) {
+  const schema_definition& new_schema) {
     // Lookup the version_ids
     const auto versions = co_await _store.invoke_on(
       shard_for(sub), _smp_opts, [&sub](auto& s) {
@@ -393,8 +385,10 @@ ss::future<bool> sharded_store::is_compatible(
     auto old_schema = co_await get_subject_schema(
       sub, version, include_deleted::no);
 
+    auto new_schema_type = get_schema_type(new_schema);
+
     // Types must always match
-    if (old_schema.type != new_schema_type) {
+    if (get_schema_type(old_schema.definition) != new_schema_type) {
         co_return false;
     }
 
@@ -418,7 +412,7 @@ ss::future<bool> sharded_store::is_compatible(
         ver_it = versions.begin();
     }
 
-    auto new_avro = make_avro_schema_definition(new_schema()).value();
+    auto new_parsed = validate(new_schema).value();
     auto is_compat = true;
     for (; is_compat && ver_it != versions.end(); ++ver_it) {
         if (ver_it->deleted) {
@@ -426,20 +420,19 @@ ss::future<bool> sharded_store::is_compatible(
         }
 
         auto old_schema = co_await get_schema(ver_it->id);
-        auto old_avro
-          = make_avro_schema_definition(old_schema.definition()).value();
+        auto old_parsed = validate(std::move(old_schema.definition)).value();
 
         if (
           compat == compatibility_level::backward
           || compat == compatibility_level::backward_transitive
           || compat == compatibility_level::full) {
-            is_compat = is_compat && check_compatible(new_avro, old_avro);
+            is_compat = is_compat && check_compatible(new_parsed, old_parsed);
         }
         if (
           compat == compatibility_level::forward
           || compat == compatibility_level::forward_transitive
           || compat == compatibility_level::full) {
-            is_compat = is_compat && check_compatible(old_avro, new_avro);
+            is_compat = is_compat && check_compatible(old_parsed, new_parsed);
         }
     }
     co_return is_compat;

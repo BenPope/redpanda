@@ -42,7 +42,7 @@ public:
     ss::future<> advance_offset(model::offset offset);
 
     ss::future<schema_id>
-    write_subject_version(subject sub, schema_definition def, schema_type type);
+    write_subject_version(subject sub, schema_definition def);
 
     ss::future<bool>
     write_config(std::optional<subject> sub, compatibility_level compat);
