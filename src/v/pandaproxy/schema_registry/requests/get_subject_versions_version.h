@@ -12,6 +12,7 @@
 #pragma once
 
 #include "pandaproxy/json/rjson_util.h"
+#include "pandaproxy/schema_registry/schema_util.h"
 #include "pandaproxy/schema_registry/types.h"
 
 namespace pandaproxy::schema_registry {
@@ -34,7 +35,7 @@ inline void rjson_serialize(
     w.Key("version");
     ::json::rjson_serialize(w, res.version);
     w.Key("schema");
-    ::json::rjson_serialize(w, res.definition);
+    ::json::rjson_serialize(w, to_string(res.definition));
     w.EndObject();
 }
 

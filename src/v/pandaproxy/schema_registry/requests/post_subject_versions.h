@@ -32,7 +32,6 @@ struct post_subject_versions_request {
 
     struct body {
         schema_definition schema{invalid_schema_definition};
-        schema_type type{schema_type::avro};
         std::vector<schema_reference> references;
     };
 
@@ -125,14 +124,15 @@ public:
         auto sv = std::string_view{str, len};
         switch (_state) {
         case state::schema: {
-            result.schema = schema_definition{ss::sstring{sv}};
+            std::get<raw_schema_definition>(result.schema).def
+              = raw_schema_definition_str{ss::sstring{sv}};
             _state = state::record;
             return true;
         }
         case state::schema_type: {
             auto type = from_string_view<schema_type>(sv);
             if (type.has_value()) {
-                result.type = *type;
+                std::get<raw_schema_definition>(result.schema).type = *type;
                 _state = state::record;
             }
             return type.has_value();
@@ -183,7 +183,9 @@ public:
     bool EndObject(rapidjson::SizeType) {
         switch (_state) {
         case state::record: {
-            auto sanitized = sanitize(std::move(result.schema), result.type);
+            _state = state::empty;
+            auto sanitized = sanitize(
+              std::move(std::get<raw_schema_definition>(result.schema)));
             bool succeeded = sanitized.has_value();
             if (succeeded) {
                 result.schema = std::move(sanitized).assume_value();
