@@ -15,6 +15,7 @@
 #include "pandaproxy/schema_registry/avro.h"
 #include "pandaproxy/schema_registry/error.h"
 #include "pandaproxy/schema_registry/errors.h"
+#include "pandaproxy/schema_registry/protobuf.h"
 #include "pandaproxy/schema_registry/schema_util.h"
 #include "pandaproxy/schema_registry/types.h"
 
@@ -45,13 +46,17 @@ make_non_const_iterator(T& container, result<typename T::const_iterator> it) {
 
 class store {
 public:
+    store()
+      : _protobuf_store{*this} {}
+
     ///\brief Construct a schema in the native format
     result<schema_definition> make_schema_definition(
-      const subject& /*sub*/, const raw_schema_definition& def) {
+      const subject& sub, const raw_schema_definition& def) {
         switch (def.type) {
         case schema_type::avro:
             return BOOST_OUTCOME_TRYX(make_avro_schema_definition(def.def()));
         case schema_type::protobuf:
+            return BOOST_OUTCOME_TRYX(_protobuf_store.insert(sub, def));
         case schema_type::json:
             return invalid_schema_type(def.type);
         }
@@ -69,6 +74,10 @@ public:
             result<schema_definition>
             operator()(avro_schema_definition def) const {
                 return std::move(def);
+            }
+            result<schema_definition>
+            operator()(protobuf_schema_definition def) const {
+                return def;
             }
             store& _store;
             const subject& sub;
@@ -498,6 +507,8 @@ public:
         return !found;
     }
 
+    protobuf_store& proto_source_tree() { return _protobuf_store; }
+
 private:
     struct schema_entry {
         schema_entry(schema_definition definition)
@@ -570,6 +581,7 @@ private:
 
     schema_map _schemas;
     subject_map _subjects;
+    protobuf_store _protobuf_store;
     compatibility_level _compatibility{compatibility_level::backward};
 };
 

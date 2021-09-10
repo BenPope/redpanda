@@ -13,6 +13,7 @@
 
 #include "pandaproxy/schema_registry/avro.h"
 #include "pandaproxy/schema_registry/error.h"
+#include "pandaproxy/schema_registry/protobuf.h"
 #include "pandaproxy/schema_registry/util.h"
 
 #include <boost/outcome/try.hpp>
@@ -35,6 +36,9 @@ bool operator==(const schema_definition& lhs, const schema_definition& rhs) {
             return to_string(lhs)
                    == to_string(std::get<avro_schema_definition>(rhs));
         }
+        bool operator()(const protobuf_schema_definition& lhs) const {
+            return lhs._fd == std::get<protobuf_schema_definition>(rhs)._fd;
+        }
         const schema_definition& rhs;
     };
     return lhs.index() == rhs.index() && std::visit(equals{rhs}, lhs);
@@ -48,6 +52,9 @@ schema_type get_schema_type(const schema_definition& def) {
         schema_type operator()(const avro_schema_definition&) const {
             return schema_type::avro;
         }
+        schema_type operator()(const protobuf_schema_definition&) const {
+            return schema_type::protobuf;
+        }
     };
     return std::visit(get_schema_type_impl{}, def);
 }
@@ -60,6 +67,9 @@ ss::sstring to_string(const schema_definition& def) {
         ss::sstring operator()(const avro_schema_definition& def) const {
             return def().toJson(false);
         }
+        ss::sstring operator()(const protobuf_schema_definition& def) const {
+            return def._fd->DebugString();
+        }
     };
     return std::visit(stringer{}, def);
 }
@@ -69,6 +79,7 @@ result<raw_schema_definition> sanitize(raw_schema_definition def) {
     case schema_type::avro:
         return sanitize_avro_schema_definition(std::move(def));
     case schema_type::protobuf:
+        return std::move(def);
     case schema_type::json:
         return invalid_schema_type(def.type);
     }

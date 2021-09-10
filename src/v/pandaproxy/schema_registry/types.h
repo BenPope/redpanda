@@ -17,6 +17,7 @@
 #include "utils/named_type.h"
 #include "utils/string_switch.h"
 
+#include <seastar/core/shared_ptr.hh>
 #include <seastar/core/sstring.hh>
 #include <seastar/util/bool_class.hh>
 
@@ -111,8 +112,10 @@ struct protobuf_schema_definition {
 ///\brief The definition of the schema.
 ///
 /// TODO(Ben): Make this cheap to copy
-using schema_definition
-  = std::variant<raw_schema_definition, avro_schema_definition>;
+using schema_definition = std::variant<
+  raw_schema_definition,
+  avro_schema_definition,
+  protobuf_schema_definition>;
 
 std::ostream& operator<<(std::ostream& os, const schema_definition& def);
 bool operator==(const schema_definition&, const schema_definition&);
