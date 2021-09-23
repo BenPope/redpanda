@@ -12,6 +12,8 @@
 #pragma once
 
 #include "pandaproxy/logger.h"
+#include "pandaproxy/schema_registry/avro.h"
+#include "pandaproxy/schema_registry/error.h"
 #include "pandaproxy/schema_registry/errors.h"
 #include "pandaproxy/schema_registry/schema_util.h"
 #include "pandaproxy/schema_registry/types.h"
@@ -60,6 +62,36 @@ make_non_const_iterator(T& container, result<typename T::const_iterator> it) {
 
 class store {
 public:
+    result<schema_definition>
+    make_schema_definition(const referenced_schema& ref) {
+        auto def = std::get<raw_schema_definition>(ref.def);
+        switch (def.type) {
+        case schema_type::avro:
+            return BOOST_OUTCOME_TRYX(make_avro_schema_definition(def.def()));
+        case schema_type::protobuf:
+        case schema_type::json:
+            return invalid_schema_type(def.type);
+        }
+        __builtin_unreachable();
+    }
+
+    ///\brief Check the schema parses with the native format
+    result<schema_definition> validate(const referenced_schema& ref) {
+        struct validator {
+            result<schema_definition>
+            operator()(const raw_schema_definition&) const {
+                return _store.make_schema_definition(_ref);
+            }
+            result<schema_definition>
+            operator()(avro_schema_definition def) const {
+                return std::move(def);
+            }
+            store& _store;
+            const referenced_schema& _ref;
+        };
+        return std::visit(validator{*this, ref}, ref.def);
+    }
+
     struct insert_result {
         schema_version version;
         schema_id id;
