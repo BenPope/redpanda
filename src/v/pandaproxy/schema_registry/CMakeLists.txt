@@ -5,6 +5,8 @@ seastar_generate_swagger(
   OUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/../api/api-doc/schema_registry.json.h
 )
 
+find_package(protobuf)
+
 v_cc_library(
   NAME pandaproxy_schema_registry
   SRCS
@@ -18,6 +20,7 @@ v_cc_library(
     seq_writer.cc
     sharded_store.cc
     avro.cc
+    protobuf.cc
   DEPS
     v::pandaproxy_common
     v::pandaproxy_parsing
@@ -27,6 +30,8 @@ v_cc_library(
     v::ssx
     v::utils
     avrocpp_s
+    protobuf::libprotobuf
+    protobuf::libprotoc
   )
 
 add_dependencies(v_pandaproxy_schema_registry schema_registry_swagger)
