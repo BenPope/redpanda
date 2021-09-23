@@ -12,12 +12,17 @@
 #pragma once
 
 #include "pandaproxy/logger.h"
+#include "pandaproxy/schema_registry/avro.h"
+#include "pandaproxy/schema_registry/error.h"
 #include "pandaproxy/schema_registry/errors.h"
 #include "pandaproxy/schema_registry/schema_util.h"
 #include "pandaproxy/schema_registry/types.h"
 
 #include <absl/container/btree_map.h>
 #include <absl/container/node_hash_map.h>
+#include <google/protobuf/compiler/importer.h>
+
+#include <cstddef>
 
 namespace pandaproxy::schema_registry {
 
@@ -40,6 +45,37 @@ make_non_const_iterator(T& container, result<typename T::const_iterator> it) {
 
 class store {
 public:
+    ///\brief Construct a schema in the native format
+    result<schema_definition> make_schema_definition(
+      const subject& /*sub*/, const raw_schema_definition& def) {
+        switch (def.type) {
+        case schema_type::avro:
+            return BOOST_OUTCOME_TRYX(make_avro_schema_definition(def.def()));
+        case schema_type::protobuf:
+        case schema_type::json:
+            return invalid_schema_type(def.type);
+        }
+        __builtin_unreachable();
+    }
+
+    ///\brief Check the schema parses with the native format
+    result<schema_definition>
+    validate(const subject& sub, schema_definition def) {
+        struct validator {
+            result<schema_definition>
+            operator()(const raw_schema_definition& def) const {
+                return _store.make_schema_definition(sub, def);
+            }
+            result<schema_definition>
+            operator()(avro_schema_definition def) const {
+                return std::move(def);
+            }
+            store& _store;
+            const subject& sub;
+        };
+        return std::visit(validator{*this, sub}, std::move(def));
+    }
+
     struct insert_result {
         schema_version version;
         schema_id id;
