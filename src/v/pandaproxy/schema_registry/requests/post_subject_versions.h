@@ -187,7 +187,6 @@ public:
             bool succeeded = sanitized.has_value();
             if (succeeded) {
                 result.schema = std::move(sanitized).assume_value();
-                _state = state::empty;
             }
             return succeeded;
         }
