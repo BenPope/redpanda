@@ -12,6 +12,7 @@
 #pragma once
 
 #include "model/metadata.h"
+#include "pandaproxy/schema_registry/fwd.h"
 #include "seastarx.h"
 #include "utils/named_type.h"
 #include "utils/string_switch.h"
@@ -98,6 +99,13 @@ struct avro_schema_definition
     explicit operator raw_schema_definition() const {
         return {ss::sstring{_value.toJson(false)}, schema_type::avro};
     }
+};
+
+struct protobuf_schema_definition {
+    explicit protobuf_schema_definition(
+      const google::protobuf::FileDescriptor* fd)
+      : _fd{fd} {}
+    const google::protobuf::FileDescriptor* _fd;
 };
 
 ///\brief The definition of the schema.
