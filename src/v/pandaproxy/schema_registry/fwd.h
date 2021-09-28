@@ -21,3 +21,9 @@ class sharded_store;
 class store;
 
 } // namespace pandaproxy::schema_registry
+
+namespace google::protobuf {
+
+class FileDescriptor;
+
+}
