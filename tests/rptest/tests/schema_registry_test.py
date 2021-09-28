@@ -260,7 +260,7 @@ class SchemaRegistryTest(RedpandaTest):
         result_raw = self._get_schemas_types()
         assert result_raw.status_code == requests.codes.ok
         result = result_raw.json()
-        assert result == ["AVRO"]
+        assert result == ["PROTOBUF", "AVRO"]
 
     @cluster(num_nodes=3)
     def test_get_schema_id_versions(self):

@@ -27,6 +27,8 @@
 #include <seastar/core/smp.hh>
 #include <seastar/core/std-coroutine.hh>
 
+#include <boost/outcome/try.hpp>
+
 namespace pandaproxy::schema_registry {
 
 namespace {
@@ -62,25 +64,48 @@ ss::future<> sharded_store::stop() { return _store.stop(); }
 
 ss::future<canonical_schema>
 sharded_store::make_canonical_schema(unparsed_schema schema) {
-    auto def = co_await _store.invoke_on(
-      shard_for(schema.sub()),
-      _smp_opts,
-      &store::make_canonical_schema,
-      schema);
-    co_return std::move(def).value();
+    switch (schema.type()) {
+    case schema_type::protobuf:
+        co_return co_await make_canonical_protobuf_schema(
+          *this, std::move(schema));
+    case schema_type::avro: {
+        co_return canonical_schema{
+          std::move(schema.sub()),
+          sanitize_avro_schema_definition(schema.def()).value(),
+          std::move(schema.refs())};
+    }
+    case schema_type::json:
+        throw as_exception(invalid_schema_type(schema.type()));
+    }
+    __builtin_unreachable();
 }
 
 ss::future<> sharded_store::validate_schema(const canonical_schema& schema) {
-    auto def = co_await _store.invoke_on(
-      shard_for(schema.sub()), _smp_opts, &store::validate_schema, schema);
-    co_return std::move(def).value();
+    switch (schema.type()) {
+    case schema_type::avro: {
+        make_avro_schema_definition(schema.def().raw()()).value();
+        co_return;
+    }
+    case schema_type::protobuf:
+        co_await validate_protobuf_schema(*this, schema);
+        co_return;
+    case schema_type::json:
+        throw as_exception(invalid_schema_type(schema.type()));
+    }
+    __builtin_unreachable();
 }
 
 ss::future<valid_schema>
 sharded_store::make_valid_schema(const canonical_schema& schema) {
-    auto def = co_await _store.invoke_on(
-      shard_for(schema.sub()), _smp_opts, &store::make_valid_schema, schema);
-    co_return std::move(def).value();
+    switch (schema.type()) {
+    case schema_type::avro:
+        co_return make_avro_schema_definition(schema.def().raw()()).value();
+    case schema_type::protobuf:
+        co_return co_await make_protobuf_schema_definition(*this, schema);
+    case schema_type::json:
+        throw as_exception(invalid_schema_type(schema.type()));
+    }
+    __builtin_unreachable();
 }
 
 ss::future<sharded_store::insert_result>
@@ -441,8 +466,10 @@ ss::future<bool> sharded_store::is_compatible(
         co_return true;
     }
 
-    // Currently only support AVRO
-    if (new_schema.type() != schema_type::avro) {
+    // Currently support PROTOBUF, AVRO
+    if (
+      new_schema.type() != schema_type::avro
+      && new_schema.type() != schema_type::protobuf) {
         throw as_exception(invalid_schema_type(new_schema.type()));
     }
 
