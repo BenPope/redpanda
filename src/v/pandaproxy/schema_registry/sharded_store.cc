@@ -67,33 +67,33 @@ sharded_store::validate(const subject& sub, schema_definition def) {
 }
 
 ss::future<sharded_store::insert_result>
-sharded_store::project_ids(subject sub, schema_definition def) {
+sharded_store::project_ids(const referenced_schema& ref) {
     // Validate the schema (may throw)
-    co_await validate(sub, def);
+    co_await validate(ref.sub, ref.def);
 
     // Check compatibility
     std::vector<schema_version> versions;
     try {
-        versions = co_await get_versions(sub, include_deleted::no);
+        versions = co_await get_versions(ref.sub, include_deleted::no);
     } catch (const exception& e) {
         if (e.code() != error_code::subject_not_found) {
             throw;
         }
     }
     if (!versions.empty()) {
-        auto compat = co_await is_compatible(sub, versions.back(), def);
+        auto compat = co_await is_compatible(ref.sub, versions.back(), ref.def);
         if (!compat) {
             throw exception(
               error_code::schema_incompatible,
               fmt::format(
                 "Schema being registered is incompatible with an earlier "
                 "schema for subject \"{}\"",
-                sub));
+                ref.sub));
         }
     }
 
     // Figure out if the definition already exists
-    auto map = [&def](store& s) { return s.get_schema_id(def); };
+    auto map = [&ref](store& s) { return s.get_schema_id(ref.def); };
     auto reduce = [](
                     std::optional<schema_id> acc,
                     std::optional<schema_id> s_id) { return acc ? acc : s_id; };
@@ -109,7 +109,11 @@ sharded_store::project_ids(subject sub, schema_definition def) {
     }
 
     auto v_id = co_await _store.invoke_on(
-      shard_for(sub), _smp_opts, &store::project_version, sub, s_id.value());
+      shard_for(ref.sub),
+      _smp_opts,
+      &store::project_version,
+      ref.sub,
+      s_id.value());
 
     co_return insert_result{
       v_id.value_or(invalid_schema_version), s_id.value(), v_id.has_value()};

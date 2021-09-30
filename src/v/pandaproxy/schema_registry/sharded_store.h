@@ -40,7 +40,7 @@ public:
         bool inserted;
     };
 
-    ss::future<insert_result> project_ids(subject sub, schema_definition def);
+    ss::future<insert_result> project_ids(const referenced_schema& ref);
 
     ss::future<bool> upsert(
       seq_marker marker,
