@@ -14,6 +14,7 @@
 #include "pandaproxy/schema_registry/client_fetch_batch_reader.h"
 #include "pandaproxy/schema_registry/exceptions.h"
 #include "pandaproxy/schema_registry/storage.h"
+#include "pandaproxy/schema_registry/types.h"
 #include "random/simple_time_jitter.h"
 #include "vassert.h"
 #include "vlog.h"
@@ -130,14 +131,13 @@ void seq_writer::advance_offset_inner(model::offset offset) {
     }
 }
 
-ss::future<schema_id>
-seq_writer::write_subject_version(subject sub, schema_definition def) {
-    auto do_write = [sub, def](
+ss::future<schema_id> seq_writer::write_subject_version(referenced_schema ref) {
+    auto do_write = [ref{std::move(ref)}](
                       model::offset write_at,
                       seq_writer& seq) -> ss::future<std::optional<schema_id>> {
         // Check if store already contains this data: if
         // so, we do no I/O and return the schema ID.
-        auto projected = co_await seq._store.project_ids(sub, def);
+        auto projected = co_await seq._store.project_ids(ref);
 
         if (!projected.inserted) {
             vlog(plog.debug, "write_subject_version: no-op");
@@ -150,20 +150,20 @@ seq_writer::write_subject_version(subject sub, schema_definition def) {
               "schema={} "
               "version={}",
               write_at,
-              sub,
+              ref.sub,
               projected.id,
               projected.version);
 
             auto key = schema_key{
               .seq{write_at},
               .node{seq._node_id},
-              .sub{sub},
+              .sub{ref.sub},
               .version{projected.version}};
             auto value = schema_value{
-              .sub{sub},
+              .sub{ref.sub},
               .version{projected.version},
               .id{projected.id},
-              .schema{def},
+              .schema{ref.def},
               .deleted = is_deleted::no};
 
             auto batch = as_record_batch(key, value);

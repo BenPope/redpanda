@@ -252,12 +252,11 @@ post_subject(server::request_t rq, server::reply_t rp) {
     // Force 40401 if no subject
     co_await rq.service().schema_store().get_versions(sub, include_deleted::no);
 
-    post_subject_versions_request req{};
+    referenced_schema req;
     try {
-        req = post_subject_versions_request{
-          .sub = sub,
-          .payload = ppj::rjson_parse(
-            rq.req->content.data(), post_subject_versions_request_handler<>{})};
+        req = ppj::rjson_parse(
+          rq.req->content.data(), referenced_schema_handler<>{});
+        req.sub = sub;
     } catch (const ppj::parse_error&) {
         throw as_exception(invalid_subject_schema(sub));
     }
@@ -265,7 +264,7 @@ post_subject(server::request_t rq, server::reply_t rp) {
     rq.req.reset();
 
     auto sub_schema = co_await rq.service().schema_store().has_schema(
-      req.sub, req.payload.schema);
+      req.sub, req.def);
 
     auto json_rslt{json::rjson_serialize(post_subject_versions_version_response{
       .sub{std::move(sub_schema.sub)},
@@ -282,14 +281,13 @@ post_subject_versions(server::request_t rq, server::reply_t rp) {
     parse_accept_header(rq, rp);
     auto sub = parse::request_param<subject>(*rq.req, "subject");
     vlog(plog.debug, "post_subject_versions subject='{}'", sub);
-    auto req = post_subject_versions_request{
-      .sub = sub,
-      .payload = ppj::rjson_parse(
-        rq.req->content.data(), post_subject_versions_request_handler<>{})};
+    auto req = ppj::rjson_parse(
+      rq.req->content.data(), referenced_schema_handler<>{});
+    req.sub = sub;
     rq.req.reset();
 
     auto schema_id = co_await rq.service().writer().write_subject_version(
-      req.sub, req.payload.schema);
+      std::move(req));
 
     auto json_rslt{
       json::rjson_serialize(post_subject_versions_response{.id{schema_id}})};
@@ -444,10 +442,10 @@ ss::future<server::reply_t>
 compatibility_subject_version(server::request_t rq, server::reply_t rp) {
     parse_accept_header(rq, rp);
     auto ver = parse::request_param<ss::sstring>(*rq.req, "version");
-    auto req = post_subject_versions_request{
-      .sub = parse::request_param<subject>(*rq.req, "subject"),
-      .payload = ppj::rjson_parse(
-        rq.req->content.data(), post_subject_versions_request_handler<>{})};
+    auto sub = parse::request_param<subject>(*rq.req, "subject");
+    auto req = ppj::rjson_parse(
+      rq.req->content.data(), referenced_schema_handler<>{});
+    req.sub = sub;
     rq.req.reset();
 
     // Must read, in case we have the subject in cache with an outdated config
@@ -472,7 +470,7 @@ compatibility_subject_version(server::request_t rq, server::reply_t rp) {
 
     auto get_res = co_await get_or_load(rq, [&rq, &req, version]() {
         return rq.service().schema_store().is_compatible(
-          req.sub, version, req.payload.schema);
+          req.sub, version, req.def);
     });
 
     auto json_rslt{
