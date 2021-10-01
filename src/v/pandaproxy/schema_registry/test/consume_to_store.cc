@@ -105,7 +105,7 @@ SEASTAR_THREAD_TEST_CASE(test_consume_to_store) {
 
     auto good_schema_1 = pps::as_record_batch(
       pps::schema_key{sequence, node_id, subject0, version0, magic1},
-      pps::schema_value{subject0, version0, id0, string_def0});
+      pps::schema_value{{subject0, string_def0}, version0, id0});
     BOOST_REQUIRE_NO_THROW(c(std::move(good_schema_1)).get());
 
     auto s_res = s.get_subject_schema(
@@ -115,7 +115,7 @@ SEASTAR_THREAD_TEST_CASE(test_consume_to_store) {
 
     auto bad_schema_magic = pps::as_record_batch(
       pps::schema_key{sequence, node_id, subject0, version0, magic2},
-      pps::schema_value{subject0, version0, id0, string_def0});
+      pps::schema_value{{subject0, string_def0}, version0, id0});
     BOOST_REQUIRE_THROW(c(std::move(bad_schema_magic)).get(), pps::exception);
 
     BOOST_REQUIRE(
