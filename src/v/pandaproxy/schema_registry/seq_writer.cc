@@ -137,7 +137,7 @@ ss::future<schema_id> seq_writer::write_subject_version(referenced_schema ref) {
                       seq_writer& seq) -> ss::future<std::optional<schema_id>> {
         // Check if store already contains this data: if
         // so, we do no I/O and return the schema ID.
-        auto projected = co_await seq._store.project_ids(ref.sub, ref.def);
+        auto projected = co_await seq._store.project_ids(ref);
 
         if (!projected.inserted) {
             vlog(plog.debug, "write_subject_version: no-op");
