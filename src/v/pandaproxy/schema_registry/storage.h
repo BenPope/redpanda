@@ -1117,8 +1117,7 @@ struct consume_to_store {
                     .node = key.node,
                     .version = val->version,
                     .key_type = seq_marker_key_type::schema},
-                  std::move(key.sub),
-                  std::move(val->schema.def),
+                  std::move(val->schema),
                   val->id,
                   val->version,
                   val->deleted);
