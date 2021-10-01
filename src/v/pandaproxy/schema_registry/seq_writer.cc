@@ -160,10 +160,9 @@ ss::future<schema_id> seq_writer::write_subject_version(referenced_schema ref) {
               .sub{ref.sub},
               .version{projected.version}};
             auto value = schema_value{
-              .sub{ref.sub},
+              .schema{ref},
               .version{projected.version},
               .id{projected.id},
-              .schema{ref.def},
               .deleted = is_deleted::no};
 
             auto batch = as_record_batch(key, value);
@@ -246,10 +245,9 @@ seq_writer::delete_subject_version(subject sub, schema_version version) {
           .seq{write_at}, .node{seq._node_id}, .sub{sub}, .version{version}};
         vlog(plog.debug, "seq_writer::delete_subject_version {}", key);
         auto value = schema_value{
-          .sub{sub},
+          .schema{.sub{sub}, .def{std::move(ss.definition)}},
           .version{version},
           .id{ss.id},
-          .schema{std::move(ss.definition)},
           .deleted{is_deleted::yes}};
 
         auto batch = as_record_batch(key, value);

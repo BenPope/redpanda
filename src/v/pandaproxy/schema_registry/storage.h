@@ -299,10 +299,9 @@ public:
 };
 
 struct schema_value {
-    subject sub;
+    referenced_schema schema;
     schema_version version;
     schema_id id;
-    schema_definition schema{invalid_schema_definition};
     is_deleted deleted{false};
 
     friend bool operator==(const schema_value&, const schema_value&) = default;
@@ -311,11 +310,11 @@ struct schema_value {
         fmt::print(
           os,
           "subject: {}, version: {}, type: {}, id: {}, schema: {}, deleted: {}",
-          v.sub,
+          v.schema.sub,
           v.version,
-          get_schema_type(v.schema),
+          get_schema_type(v.schema.def),
           v.id,
-          v.schema,
+          v.schema.def,
           v.deleted);
         return os;
     }
@@ -326,18 +325,18 @@ inline void rjson_serialize(
   const schema_registry::schema_value& val) {
     w.StartObject();
     w.Key("subject");
-    ::json::rjson_serialize(w, val.sub);
+    ::json::rjson_serialize(w, val.schema.sub);
     w.Key("version");
     ::json::rjson_serialize(w, val.version);
     w.Key("id");
     ::json::rjson_serialize(w, val.id);
-    auto type = get_schema_type(val.schema);
+    auto type = get_schema_type(val.schema.def);
     if (type != schema_type::avro) {
         w.Key("schemaType");
         ::json::rjson_serialize(w, to_string_view(type));
     }
     w.Key("schema");
-    ::json::rjson_serialize(w, to_string(val.schema));
+    ::json::rjson_serialize(w, to_string(val.schema.def));
     w.Key("deleted");
     ::json::rjson_serialize(w, bool(val.deleted));
     w.EndObject();
@@ -440,12 +439,12 @@ public:
         auto sv = std::string_view{str, len};
         switch (_state) {
         case state::subject: {
-            result.sub = subject{ss::sstring{sv}};
+            result.schema.sub = subject{ss::sstring{sv}};
             _state = state::object;
             return true;
         }
         case state::definition: {
-            std::get<raw_schema_definition>(result.schema).def
+            std::get<raw_schema_definition>(result.schema.def).def
               = raw_schema_definition_str{ss::sstring{sv}};
             _state = state::object;
             return true;
@@ -453,7 +452,7 @@ public:
         case state::type: {
             auto type = from_string_view<schema_type>(sv);
             if (type.has_value()) {
-                std::get<raw_schema_definition>(result.schema).type = *type;
+                std::get<raw_schema_definition>(result.schema.def).type = *type;
                 _state = state::object;
             }
             return type.has_value();
@@ -1119,7 +1118,7 @@ struct consume_to_store {
                     .version = val->version,
                     .key_type = seq_marker_key_type::schema},
                   std::move(key.sub),
-                  std::move(val->schema),
+                  std::move(val->schema.def),
                   val->id,
                   val->version,
                   val->deleted);
