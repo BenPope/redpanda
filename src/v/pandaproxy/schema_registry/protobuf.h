@@ -24,6 +24,8 @@ public:
     result<protobuf_schema_definition>
     insert(const subject& sub, const raw_schema_definition& def);
 
+    result<protobuf_schema_definition> insert(const referenced_schema& ref);
+
     result<protobuf_schema_definition> get(const subject& sub);
 
 private:

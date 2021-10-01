@@ -11,6 +11,7 @@
 
 #include "pandaproxy/schema_registry/protobuf.h"
 
+#include "pandaproxy/logger.h"
 #include "pandaproxy/schema_registry/avro.h"
 #include "pandaproxy/schema_registry/error.h"
 #include "pandaproxy/schema_registry/errors.h"
@@ -18,16 +19,19 @@
 #include "pandaproxy/schema_registry/store.h"
 #include "pandaproxy/schema_registry/types.h"
 #include "random/generators.h"
+#include "vlog.h"
 
 #include <seastar/core/sleep.hh>
 #include <seastar/core/thread.hh>
 
+#include <boost/outcome/success_failure.hpp>
 #include <fmt/core.h>
 #include <fmt/ostream.h>
 #include <fmt/ranges.h>
 #include <google/protobuf/compiler/importer.h>
 #include <google/protobuf/compiler/parser.h>
 #include <google/protobuf/descriptor.h>
+#include <google/protobuf/descriptor_database.h>
 #include <google/protobuf/io/tokenizer.h>
 #include <google/protobuf/io/zero_copy_stream.h>
 #include <google/protobuf/message.h>
@@ -204,6 +208,9 @@ public:
 
     ss::sstring error() const {
         // return ssx::sformat("{}", fmt::join(_errors, "; "));
+        if (_errors.empty()) {
+            return "Huh, no error";
+        }
         return ssx::sformat("{}", _errors[0]);
     }
 
@@ -222,13 +229,14 @@ private:
         friend std::ostream& operator<<(std::ostream& os, const err& e) {
             fmt::print(
               os,
-              "{}: subject: '{}', element_name: '{}', descriptor: '{}', "
-              "location: '{}', msg: '{}'",
+              //   "{}: subject: '{}', element_name: '{}', descriptor: '{}', "
+              //   "location: '{}', msg: '{}'",
+              "{}: subject: '{}', element_name: '{}', msg: '{}'",
               e.lvl == level::error ? "error" : "warn",
               e.filename,
               e.element_name,
-              e.descriptor->DebugString(),
-              e.location,
+              //   e.descriptor->DebugString(),
+              //   e.location,
               e.message);
             return os;
         }
@@ -328,6 +336,79 @@ struct protobuf_store::impl {
         return get(sub);
     }
 
+    result<protobuf_schema_definition> insert(const referenced_schema& ref) {
+        const auto& raw_def = std::get<raw_schema_definition>(ref.def);
+        google::protobuf::compiler::Parser p;
+        io_error_collector ec;
+        schema_def_input_stream is{raw_def};
+        google::protobuf::io::Tokenizer t{&is, &ec};
+        google::protobuf::FileDescriptorProto fdp;
+        auto p_res = p.Parse(&t, &fdp);
+        if (!p_res) {
+            return error_info{error_code::schema_invalid, ec.error()};
+        }
+        fdp.set_name(ref.sub());
+        vlog(plog.error, "raw def: \n{}", raw_def);
+        vlog(plog.error, "References");
+        for (const auto& ref : ref.references) {
+            vlog(plog.error, "   {} -> {}", ref.name, ref.sub);
+        }
+        // vlog(plog.error, "Dependencies");
+        for (int i = 0; i < fdp.dependency_size(); ++i) {
+            auto ifd = fdp.dependency(i);
+            vlog(plog.error, "   {}", ifd);
+            auto it = find_if(
+              ref.references.begin(),
+              ref.references.end(),
+              [&ifd](const auto& other) { return ifd == other.name; });
+            if (it != ref.references.end()) {
+                fdp.set_dependency(i, it->sub());
+            } else {
+                fdp.add_dependency(it->sub());
+            }
+        }
+        // vlog(plog.error, "Dependencies");
+        // for (int i = 0; i < fdp.dependency_size(); ++i) {
+        //     auto ifd = fdp.dependency(i);
+        //     vlog(plog.error, "   {}", ifd);
+        // }
+        // vlog(plog.error, "Public dependencies");
+        // for (int i = 0; i < fdp.public_dependency_size(); ++i) {
+        //     auto ifd = fdp.public_dependency(i);
+        //     vlog(plog.error, "   {}", ifd);
+        // }
+        // vlog(plog.error, "Weak Dependencies");
+        // for (int i = 0; i < fdp.weak_dependency_size(); ++i) {
+        //     auto ifd = fdp.weak_dependency(i);
+        //     vlog(plog.error, "   {}", ifd);
+        // }
+        // vlog(plog.error, "fdp: \n{}", fdp.DebugString());
+        // vlog(plog.error, "fdp: \n{}", fdp.ShortDebugString());
+
+        auto imp = google::protobuf::compiler::Importer(
+          &_source_tree, &_error_handler);
+
+        google::protobuf::SimpleDescriptorDatabase sdd;
+        if (!sdd.Add(fdp)) {
+            return error_info{error_code::schema_invalid, "couldn't add fdp"};
+        }
+
+        google::protobuf::compiler::SourceTreeDescriptorDatabase stdd(
+          &_source_tree, &sdd);
+        dp_error_collector dp_ec;
+        google::protobuf::DescriptorPool dp(&stdd, &dp_ec);
+        auto fd = dp.FindFileByName(ref.sub());
+        if (!fd) {
+            return error_info{error_code::schema_invalid, dp_ec.error()};
+        }
+        vlog(plog.error, "fd: \n{}", fd->DebugString());
+
+        // vlog(plog.error, "New Def: \n{}", d_res.assume_value());
+        _source_tree.get_store().insert(
+          ref.sub, protobuf_schema_definition{fd});
+        return get(ref.sub);
+    }
+
     result<protobuf_schema_definition> get(const subject& sub) {
         auto fd = _importer.Import(sub());
         if (!fd) {
@@ -349,6 +430,11 @@ protobuf_store::~protobuf_store() = default;
 result<protobuf_schema_definition>
 protobuf_store::insert(const subject& sub, const raw_schema_definition& def) {
     return _impl->insert(sub, def);
+}
+
+result<protobuf_schema_definition>
+protobuf_store::insert(const referenced_schema& ref) {
+    return _impl->insert(ref);
 }
 
 result<protobuf_schema_definition> protobuf_store::get(const subject& sub) {
