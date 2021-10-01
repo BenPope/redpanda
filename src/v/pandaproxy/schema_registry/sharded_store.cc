@@ -58,12 +58,27 @@ ss::future<schema_definition> sharded_store::make_schema_definition(
 }
 
 ss::future<schema_definition>
+sharded_store::make_schema_definition(const referenced_schema& ref) {
+    constexpr ss::shard_id shard_for_sub{0};
+    return _store.invoke_on(shard_for_sub, [ref](store& s) {
+        return s.make_schema_definition(ref).value();
+    });
+}
+
+ss::future<schema_definition>
 sharded_store::validate(const subject& sub, schema_definition def) {
     constexpr ss::shard_id shard_for_sub{0};
     return _store.invoke_on(
       shard_for_sub, [sub, def{std::move(def)}](store& s) {
           return s.validate(sub, def).value();
       });
+}
+
+ss::future<schema_definition> sharded_store::validate(referenced_schema ref) {
+    constexpr ss::shard_id shard_for_sub{0};
+    return _store.invoke_on(shard_for_sub, [ref{std::move(ref)}](store& s) {
+        return s.validate(ref).value();
+    });
 }
 
 ss::future<sharded_store::insert_result>
@@ -81,7 +96,7 @@ sharded_store::project_ids(const referenced_schema& ref) {
         }
     }
     if (!versions.empty()) {
-        auto compat = co_await is_compatible(ref.sub, versions.back(), ref.def);
+        auto compat = co_await is_compatible(versions.back(), ref);
         if (!compat) {
             throw exception(
               error_code::schema_incompatible,
