@@ -42,19 +42,18 @@ SEASTAR_THREAD_TEST_CASE(test_post_subject_versions_parser) {
     }
   ]
 })"};
-    const pps::subject sub{"test_subject"};
-    const pps::post_subject_versions_request::body expected{
-      .schema{pps::schema_definition{expected_schema_def}},
-      .references{pps::post_subject_versions_request::schema_reference{
-        .name{"com.acme.Referenced"},
-        .sub{pps::subject{"childSubject"}},
-        .version{pps::schema_version{1}}}}};
+    const pps::referenced_schema expected{
+      .sub{"test_subject"},
+      .def{expected_schema_def},
+      .references{
+        {.name{"com.acme.Referenced"},
+         .sub{pps::subject{"childSubject"}},
+         .version{pps::schema_version{1}}}}};
 
-    auto result{ppj::rjson_parse(
-      payload.data(), pps::post_subject_versions_request_handler{})};
+    auto result{
+      ppj::rjson_parse(payload.data(), pps::referenced_schema_handler{})};
 
-    BOOST_REQUIRE_EQUAL(expected.schema, result.schema);
-    BOOST_REQUIRE(
-      get_schema_type(expected.schema) == get_schema_type(result.schema));
+    BOOST_REQUIRE_EQUAL(expected.def, result.def);
+    BOOST_REQUIRE(get_schema_type(expected.def) == get_schema_type(result.def));
     BOOST_REQUIRE(expected.references.size() == result.references.size());
 }
