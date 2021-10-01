@@ -23,25 +23,8 @@
 
 namespace pandaproxy::schema_registry {
 
-struct post_subject_versions_request {
-    struct schema_reference {
-        ss::sstring name;
-        subject sub{invalid_subject};
-        schema_version version{invalid_schema_version};
-    };
-
-    struct body {
-        schema_definition schema{invalid_schema_definition};
-        std::vector<schema_reference> references;
-    };
-
-    subject sub;
-    body payload;
-};
-
 template<typename Encoding = rapidjson::UTF8<>>
-class post_subject_versions_request_handler
-  : public json::base_handler<Encoding> {
+class referenced_schema_handler : public json::base_handler<Encoding> {
     enum class state {
         empty = 0,
         record,
@@ -57,10 +40,10 @@ class post_subject_versions_request_handler
 
 public:
     using Ch = typename json::base_handler<Encoding>::Ch;
-    using rjson_parse_result = post_subject_versions_request::body;
+    using rjson_parse_result = referenced_schema;
     rjson_parse_result result;
 
-    post_subject_versions_request_handler()
+    referenced_schema_handler()
       : json::base_handler<Encoding>{json::serialization_format::none} {}
 
     bool Key(const Ch* str, rapidjson::SizeType len, bool) {
@@ -124,7 +107,7 @@ public:
         auto sv = std::string_view{str, len};
         switch (_state) {
         case state::schema: {
-            std::get<raw_schema_definition>(result.schema).def
+            std::get<raw_schema_definition>(result.def).def
               = raw_schema_definition_str{ss::sstring{sv}};
             _state = state::record;
             return true;
@@ -132,7 +115,7 @@ public:
         case state::schema_type: {
             auto type = from_string_view<schema_type>(sv);
             if (type.has_value()) {
-                std::get<raw_schema_definition>(result.schema).type = *type;
+                std::get<raw_schema_definition>(result.def).type = *type;
                 _state = state::record;
             }
             return type.has_value();
@@ -185,10 +168,10 @@ public:
         case state::record: {
             _state = state::empty;
             auto sanitized = sanitize(
-              std::move(std::get<raw_schema_definition>(result.schema)));
+              std::move(std::get<raw_schema_definition>(result.def)));
             bool succeeded = sanitized.has_value();
             if (succeeded) {
-                result.schema = std::move(sanitized).assume_value();
+                result.def = std::move(sanitized).assume_value();
             }
             return succeeded;
         }
