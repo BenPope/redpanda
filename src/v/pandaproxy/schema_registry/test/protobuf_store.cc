@@ -19,19 +19,32 @@
 namespace pp = pandaproxy;
 namespace pps = pp::schema_registry;
 
-BOOST_AUTO_TEST_CASE(test_protobuf_store) {
+BOOST_AUTO_TEST_CASE(test_protobuf_store_simple) {
     pps::store s;
     pps::protobuf_store ps{s};
 
     auto simple_ins = ps.insert(pps::subject{"simple"}, simple).value();
     auto imported_ins = ps.insert(pps::subject{"imported"}, imported).value();
-    // BOOST_REQUIRE(simple_ins);
-    // BOOST_REQUIRE(imported_ins);
+}
 
-    // // Adding an enum field is ok
-    // auto enum2_proto = s.make_schema_definition(pps::subject{"enum2"},
-    // enum2); auto enum3_proto =
-    // s.make_schema_definition(pps::subject{"enum2"}, enum2);
-    // BOOST_REQUIRE(check_compatible(enum3_proto.value(),
-    // enum2_proto.value()));
+BOOST_AUTO_TEST_CASE(test_protobuf_store_subject_duplicate) {
+    pps::store s;
+    pps::protobuf_store ps{s};
+
+    auto simple1_ins = ps.insert(pps::subject{"simple1"}, simple).value();
+    auto simple2_ins = ps.insert(pps::subject{"simple2"}, simple).value();
+}
+
+const pps::referenced_schema referenced{
+  .sub{"referenced-value"},
+  .def{imported},
+  .references{pps::referenced_schema::reference{
+    .name{"simple"}, .sub{"simple-value"}, .version{1}}}};
+
+BOOST_AUTO_TEST_CASE(test_protobuf_store_subject_references) {
+    pps::store s;
+    pps::protobuf_store ps{s};
+
+    auto simple1_ins = ps.insert(pps::subject{"simple-value"}, simple).value();
+    auto simple2_ins = ps.insert(referenced).value();
 }
