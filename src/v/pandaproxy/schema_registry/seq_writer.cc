@@ -160,7 +160,7 @@ ss::future<schema_id> seq_writer::write_subject_version(referenced_schema ref) {
               .sub{ref.sub},
               .version{projected.version}};
             auto value = schema_value{
-              .schema{.sub{ref.sub}, .def{ref.def}},
+              .schema{ref},
               .version{projected.version},
               .id{projected.id},
               .deleted = is_deleted::no};
