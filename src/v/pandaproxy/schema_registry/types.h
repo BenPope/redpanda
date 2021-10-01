@@ -196,6 +196,11 @@ struct referenced_schema {
     subject sub;
     schema_definition def{invalid_schema_definition};
     std::vector<reference> references;
+
+    friend bool
+    operator==(const referenced_schema& lhs, const referenced_schema& rhs) {
+        return lhs.sub == rhs.sub && lhs.def == rhs.def;
+    }
 };
 
 ///\brief A mapping of version and schema id for a subject.
