@@ -104,13 +104,18 @@ sharded_store::project_ids(const referenced_schema& ref) {
 
 ss::future<bool> sharded_store::upsert(
   seq_marker marker,
-  subject sub,
-  schema_definition def,
+  referenced_schema ref,
   schema_id id,
   schema_version version,
   is_deleted deleted) {
-    co_await upsert_schema(id, std::move(def));
-    co_return co_await upsert_subject(marker, sub, version, id, deleted);
+    co_await upsert_schema(id, std::move(ref.def));
+    co_return co_await upsert_subject(
+      marker,
+      std::move(ref.sub),
+      std::move(ref.references),
+      version,
+      id,
+      deleted);
 }
 
 ss::future<subject_schema> sharded_store::has_schema(referenced_schema ref) {
@@ -320,6 +325,7 @@ sharded_store::insert_subject(subject sub, schema_id id) {
 ss::future<bool> sharded_store::upsert_subject(
   seq_marker marker,
   subject sub,
+  referenced_schema::references_t refs,
   schema_version version,
   schema_id id,
   is_deleted deleted) {
@@ -329,6 +335,7 @@ ss::future<bool> sharded_store::upsert_subject(
       &store::upsert_subject,
       marker,
       sub,
+      std::move(refs),
       version,
       id,
       deleted);
@@ -372,7 +379,7 @@ ss::future<bool> sharded_store::is_compatible(
       versions.begin(),
       versions.end(),
       version,
-      [](const subject_version_id& lhs, schema_version rhs) {
+      [](const subject_version_entry& lhs, schema_version rhs) {
           return lhs.version < rhs;
       });
     if (ver_it == versions.end() || ver_it->version != version) {

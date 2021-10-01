@@ -68,14 +68,18 @@ BOOST_AUTO_TEST_CASE(test_store_insert) {
 /// Emulate how `sharded_store` does upserts on `store`
 bool upsert(
   pps::store& store,
-  pps::subject sub,
-  pps::schema_definition def,
+  pps::referenced_schema ref,
   pps::schema_id id,
   pps::schema_version version,
   pps::is_deleted deleted) {
-    store.upsert_schema(id, std::move(def));
+    store.upsert_schema(id, std::move(ref.def));
     return store.upsert_subject(
-      pps::seq_marker{}, std::move(sub), version, id, deleted);
+      pps::seq_marker{},
+      std::move(ref.sub),
+      std::move(ref.references),
+      version,
+      id,
+      deleted);
 }
 
 BOOST_AUTO_TEST_CASE(test_store_upsert_in_order) {
@@ -85,15 +89,13 @@ BOOST_AUTO_TEST_CASE(test_store_upsert_in_order) {
     pps::store s;
     BOOST_REQUIRE(upsert(
       s,
-      subject0,
-      string_def0,
+      {subject0, string_def0},
       pps::schema_id{0},
       pps::schema_version{0},
       pps::is_deleted::no));
     BOOST_REQUIRE(upsert(
       s,
-      subject0,
-      string_def0,
+      {subject0, string_def0},
       pps::schema_id{1},
       pps::schema_version{1},
       pps::is_deleted::no));
@@ -114,15 +116,13 @@ BOOST_AUTO_TEST_CASE(test_store_upsert_reverse_order) {
     pps::store s;
     BOOST_REQUIRE(upsert(
       s,
-      subject0,
-      string_def0,
+      {subject0, string_def0},
       pps::schema_id{1},
       pps::schema_version{1},
       pps::is_deleted::no));
     BOOST_REQUIRE(upsert(
       s,
-      subject0,
-      string_def0,
+      {subject0, string_def0},
       pps::schema_id{0},
       pps::schema_version{0},
       pps::is_deleted::no));
@@ -143,16 +143,14 @@ BOOST_AUTO_TEST_CASE(test_store_upsert_override) {
     pps::store s;
     BOOST_REQUIRE(upsert(
       s,
-      subject0,
-      string_def0,
+      {subject0, string_def0},
       pps::schema_id{0},
       pps::schema_version{0},
       pps::is_deleted::no));
     // override schema and version (should return no insertion)
     BOOST_REQUIRE(!upsert(
       s,
-      subject0,
-      int_def0,
+      {subject0, int_def0},
       pps::schema_id{0},
       pps::schema_version{0},
       pps::is_deleted::no));
@@ -228,6 +226,7 @@ BOOST_AUTO_TEST_CASE(test_store_get_schema_subject_versions) {
     s.upsert_subject(
       dummy_marker,
       subject0,
+      {},
       pps::schema_version{1},
       pps::schema_id{1},
       pps::is_deleted::yes);
@@ -590,6 +589,7 @@ BOOST_AUTO_TEST_CASE(test_store_delete_subject_version) {
     BOOST_REQUIRE_NO_THROW(s.upsert_subject(
       dummy_marker,
       subject0,
+      {},
       pps::schema_version{1},
       pps::schema_id{1},
       pps::is_deleted::yes));
@@ -644,6 +644,7 @@ BOOST_AUTO_TEST_CASE(test_store_delete_subject_after_delete_version) {
     s.upsert_subject(
       dummy_marker,
       subject0,
+      {},
       pps::schema_version{1},
       pps::schema_id{1},
       pps::is_deleted::yes);

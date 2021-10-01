@@ -36,8 +36,7 @@ public:
 
     ss::future<bool> upsert(
       seq_marker marker,
-      subject sub,
-      schema_definition def,
+      referenced_schema ref,
       schema_id id,
       schema_version version,
       is_deleted deleted);
@@ -120,6 +119,7 @@ private:
     ss::future<bool> upsert_subject(
       seq_marker marker,
       subject sub,
+      referenced_schema::references_t refs,
       schema_version version,
       schema_id id,
       is_deleted deleted);
