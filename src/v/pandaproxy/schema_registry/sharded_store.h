@@ -114,7 +114,8 @@ private:
         schema_version version;
         bool inserted;
     };
-    ss::future<insert_subject_result> insert_subject(subject sub, schema_id id);
+    ss::future<insert_subject_result> insert_subject(
+      subject sub, referenced_schema::references_t refs, schema_id id);
 
     ss::future<bool> upsert_subject(
       seq_marker marker,

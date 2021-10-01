@@ -315,10 +315,15 @@ sharded_store::upsert_schema(schema_id id, schema_definition def) {
       shard_for(id), _smp_opts, &store::upsert_schema, id, std::move(def));
 }
 
-ss::future<sharded_store::insert_subject_result>
-sharded_store::insert_subject(subject sub, schema_id id) {
+ss::future<sharded_store::insert_subject_result> sharded_store::insert_subject(
+  subject sub, referenced_schema::references_t refs, schema_id id) {
     auto [version, inserted] = co_await _store.invoke_on(
-      shard_for(sub), _smp_opts, &store::insert_subject, sub, id);
+      shard_for(sub),
+      _smp_opts,
+      &store::insert_subject,
+      sub,
+      std::move(refs),
+      id);
     co_return insert_subject_result{version, inserted};
 }
 
