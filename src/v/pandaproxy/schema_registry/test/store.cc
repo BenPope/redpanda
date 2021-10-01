@@ -35,31 +35,31 @@ BOOST_AUTO_TEST_CASE(test_store_insert) {
     pps::store s;
 
     // First insert, expect id{1}, version{1}
-    auto ins_res = s.insert(subject0, string_def0);
+    auto ins_res = s.insert({subject0, string_def0});
     BOOST_REQUIRE(ins_res.inserted);
     BOOST_REQUIRE_EQUAL(ins_res.id, pps::schema_id{1});
     BOOST_REQUIRE_EQUAL(ins_res.version, pps::schema_version{1});
 
     // Insert duplicate, expect id{1}, versions{1}
-    ins_res = s.insert(subject0, string_def0);
+    ins_res = s.insert({subject0, string_def0});
     BOOST_REQUIRE(!ins_res.inserted);
     BOOST_REQUIRE_EQUAL(ins_res.id, pps::schema_id{1});
     BOOST_REQUIRE_EQUAL(ins_res.version, pps::schema_version{1});
 
     // Insert duplicate, with spaces, expect id{1}, versions{1}
-    ins_res = s.insert(subject0, string_def1);
+    ins_res = s.insert({subject0, string_def1});
     BOOST_REQUIRE(!ins_res.inserted);
     BOOST_REQUIRE_EQUAL(ins_res.id, pps::schema_id{1});
     BOOST_REQUIRE_EQUAL(ins_res.version, pps::schema_version{1});
 
     // Insert on different subject, expect id{1}, version{1}
-    ins_res = s.insert(subject1, string_def0);
+    ins_res = s.insert({subject1, string_def0});
     BOOST_REQUIRE(ins_res.inserted);
     BOOST_REQUIRE_EQUAL(ins_res.id, pps::schema_id{1});
     BOOST_REQUIRE_EQUAL(ins_res.version, pps::schema_version{1});
 
     // Insert different schema, expect id{2}, version{2}
-    ins_res = s.insert(subject0, int_def0);
+    ins_res = s.insert({subject0, int_def0});
     BOOST_REQUIRE(ins_res.inserted);
     BOOST_REQUIRE_EQUAL(ins_res.id, pps::schema_id{2});
     BOOST_REQUIRE_EQUAL(ins_res.version, pps::schema_version{2});
@@ -177,7 +177,7 @@ BOOST_AUTO_TEST_CASE(test_store_get_schema) {
     BOOST_REQUIRE(err.code() == pps::error_code::schema_id_not_found);
 
     // First insert, expect id{1}
-    auto ins_res = s.insert(subject0, string_def0);
+    auto ins_res = s.insert({subject0, string_def0});
     BOOST_REQUIRE(ins_res.inserted);
     BOOST_REQUIRE_EQUAL(ins_res.id, pps::schema_id{1});
     BOOST_REQUIRE_EQUAL(ins_res.version, pps::schema_version{1});
@@ -197,7 +197,7 @@ BOOST_AUTO_TEST_CASE(test_store_get_schema_subject_versions) {
     pps::seq_marker dummy_marker;
 
     // First insert, expect id{1}
-    auto ins_res = s.insert(subject0, pps::schema_definition(schema1));
+    auto ins_res = s.insert({subject0, pps::schema_definition(schema1)});
     BOOST_REQUIRE(ins_res.inserted);
     BOOST_REQUIRE_EQUAL(ins_res.id, pps::schema_id{1});
     BOOST_REQUIRE_EQUAL(ins_res.version, pps::schema_version{1});
@@ -211,7 +211,7 @@ BOOST_AUTO_TEST_CASE(test_store_get_schema_subject_versions) {
     BOOST_REQUIRE(versions.empty());
 
     // Second insert, expect id{2}
-    ins_res = s.insert(subject0, pps::schema_definition(schema2));
+    ins_res = s.insert({subject0, pps::schema_definition(schema2)});
     BOOST_REQUIRE(ins_res.inserted);
     BOOST_REQUIRE_EQUAL(ins_res.id, pps::schema_id{2});
     BOOST_REQUIRE_EQUAL(ins_res.version, pps::schema_version{2});
@@ -248,7 +248,7 @@ BOOST_AUTO_TEST_CASE(test_store_get_subject_schema) {
     BOOST_REQUIRE(err.code() == pps::error_code::subject_not_found);
 
     // First insert, expect id{1}, version{1}
-    auto ins_res = s.insert(subject0, string_def0);
+    auto ins_res = s.insert({subject0, string_def0});
     BOOST_REQUIRE(ins_res.inserted);
     BOOST_REQUIRE_EQUAL(ins_res.id, pps::schema_id{1});
     BOOST_REQUIRE_EQUAL(ins_res.version, pps::schema_version{1});
@@ -264,7 +264,7 @@ BOOST_AUTO_TEST_CASE(test_store_get_subject_schema) {
     BOOST_REQUIRE_EQUAL(val.definition, string_def0);
 
     // Second insert, expect id{1}, version{1}
-    ins_res = s.insert(subject0, string_def0);
+    ins_res = s.insert({subject0, string_def0});
     BOOST_REQUIRE(!ins_res.inserted);
     BOOST_REQUIRE_EQUAL(ins_res.id, pps::schema_id{1});
 
@@ -290,7 +290,7 @@ BOOST_AUTO_TEST_CASE(test_store_get_versions) {
     pps::store s;
 
     // First insert, expect id{1}, version{1}
-    s.insert(subject0, string_def0);
+    s.insert({subject0, string_def0});
 
     auto versions = s.get_versions(subject0, pps::include_deleted::no);
     BOOST_REQUIRE(versions.has_value());
@@ -298,7 +298,7 @@ BOOST_AUTO_TEST_CASE(test_store_get_versions) {
     BOOST_REQUIRE_EQUAL(versions.value().front(), pps::schema_version{1});
 
     // Insert duplicate, expect id{1}, versions{1}
-    s.insert(subject0, string_def0);
+    s.insert({subject0, string_def0});
 
     versions = s.get_versions(subject0, pps::include_deleted::no);
     BOOST_REQUIRE(versions.has_value());
@@ -306,7 +306,7 @@ BOOST_AUTO_TEST_CASE(test_store_get_versions) {
     BOOST_REQUIRE_EQUAL(versions.value().front(), pps::schema_version{1});
 
     // Insert different schema, expect id{2}, version{2}
-    s.insert(subject0, int_def0);
+    s.insert({subject0, int_def0});
 
     versions = s.get_versions(subject0, pps::include_deleted::no);
     BOOST_REQUIRE(versions.has_value());
@@ -326,13 +326,13 @@ BOOST_AUTO_TEST_CASE(test_store_get_subjects) {
     BOOST_REQUIRE(subjects.empty());
 
     // First insert
-    s.insert(subject0, string_def0);
+    s.insert({subject0, string_def0});
     subjects = s.get_subjects(pps::include_deleted::no);
     BOOST_REQUIRE_EQUAL(subjects.size(), 1);
     BOOST_REQUIRE_EQUAL(absl::c_count_if(subjects, is_equal(subject0)), 1);
 
     // second insert
-    s.insert(subject1, string_def0);
+    s.insert({subject1, string_def0});
     subjects = s.get_subjects(pps::include_deleted::no);
     BOOST_REQUIRE(subjects.size() == 2);
     BOOST_REQUIRE_EQUAL(absl::c_count_if(subjects, is_equal(subject0)), 1);
@@ -367,7 +367,7 @@ BOOST_AUTO_TEST_CASE(test_store_subject_compat) {
       pps::compatibility_level::backward};
     pps::store s;
     BOOST_REQUIRE(s.get_compatibility().value() == global_expected);
-    s.insert(subject0, string_def0);
+    s.insert({subject0, string_def0});
 
     auto sub_expected = pps::compatibility_level::backward;
     BOOST_REQUIRE(
@@ -404,7 +404,7 @@ BOOST_AUTO_TEST_CASE(test_store_subject_compat_fallback) {
 
     pps::compatibility_level expected{pps::compatibility_level::backward};
     pps::store s;
-    s.insert(subject0, string_def0);
+    s.insert({subject0, string_def0});
     BOOST_REQUIRE(s.get_compatibility(subject0, fallback).value() == expected);
 
     expected = pps::compatibility_level::forward;
@@ -452,8 +452,8 @@ BOOST_AUTO_TEST_CASE(test_store_delete_subject) {
       pps::error_code::subject_not_found);
 
     // First insert, expect id{1}, version{1}
-    s.insert(subject0, string_def0);
-    s.insert(subject0, int_def0);
+    s.insert({subject0, string_def0});
+    s.insert({subject0, int_def0});
 
     auto v_res = s.get_versions(subject0, pps::include_deleted::no);
     BOOST_REQUIRE(v_res.has_value());
@@ -562,8 +562,8 @@ BOOST_AUTO_TEST_CASE(test_store_delete_subject_version) {
       pps::error_code::subject_not_found);
 
     // First insert, expect id{1}, version{1}
-    s.insert(subject0, string_def0);
-    s.insert(subject0, int_def0);
+    s.insert({subject0, string_def0});
+    s.insert({subject0, int_def0});
 
     auto v_res = s.get_versions(subject0, pps::include_deleted::no);
     BOOST_REQUIRE(v_res.has_value());
@@ -637,8 +637,8 @@ BOOST_AUTO_TEST_CASE(test_store_delete_subject_after_delete_version) {
     pps::seq_marker dummy_marker;
 
     // First insert, expect id{1}, version{1}
-    s.insert(subject0, string_def0);
-    s.insert(subject0, int_def0);
+    s.insert({subject0, string_def0});
+    s.insert({subject0, int_def0});
 
     // delete version 1
     s.upsert_subject(

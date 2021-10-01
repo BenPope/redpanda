@@ -33,16 +33,6 @@ struct subject_version_entry {
       , refs{std::move(refs)}
       , deleted(deleted) {}
 
-    subject_version_entry(
-      schema_version version, schema_id id, is_deleted deleted)
-      : version{version}
-      , id{id}
-      , deleted(deleted) {}
-
-    subject_version_entry(schema_version version, schema_id id)
-      : version{version}
-      , id{id} {}
-
     schema_version version;
     schema_id id;
     referenced_schema::references_t refs;
@@ -82,9 +72,10 @@ public:
     /// version.
     ///
     /// return the schema_version and schema_id, and whether it's new.
-    insert_result insert(subject sub, schema_definition def) {
-        auto id = insert_schema(std::move(def)).id;
-        auto [version, inserted] = insert_subject(std::move(sub), id);
+    insert_result insert(referenced_schema ref) {
+        auto id = insert_schema(std::move(ref.def)).id;
+        auto [version, inserted] = insert_subject(
+          std::move(ref.sub), std::move(ref.references), id);
         return {version, id, inserted};
     }
 
@@ -433,7 +424,8 @@ public:
         schema_version version;
         bool inserted;
     };
-    insert_subject_result insert_subject(subject sub, schema_id id) {
+    insert_subject_result insert_subject(
+      subject sub, referenced_schema::references_t refs, schema_id id) {
         auto& subject_entry = _subjects[std::move(sub)];
         subject_entry.deleted = is_deleted::no;
         auto& versions = subject_entry.versions;
@@ -448,7 +440,7 @@ public:
 
         const auto version = versions.empty() ? schema_version{1}
                                               : versions.back().version + 1;
-        versions.emplace_back(version, id, is_deleted::no);
+        versions.emplace_back(version, id, std::move(refs), is_deleted::no);
         return {version, true};
     }
 
