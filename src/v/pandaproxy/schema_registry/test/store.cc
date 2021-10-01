@@ -165,7 +165,7 @@ BOOST_AUTO_TEST_CASE(test_store_upsert_override) {
     auto s_res = s.get_subject_schema(
       subject0, pps::schema_version{0}, pps::include_deleted::no);
     BOOST_REQUIRE(s_res.has_value());
-    BOOST_REQUIRE_EQUAL(s_res.value().definition, int_def0);
+    BOOST_REQUIRE_EQUAL(s_res.value().schema.def, int_def0);
 }
 
 BOOST_AUTO_TEST_CASE(test_store_get_schema) {
@@ -261,7 +261,7 @@ BOOST_AUTO_TEST_CASE(test_store_get_subject_schema) {
     BOOST_REQUIRE_EQUAL(val.id, pps::schema_id{1});
     BOOST_REQUIRE_EQUAL(val.version, pps::schema_version{1});
     BOOST_REQUIRE_EQUAL(val.deleted, pps::is_deleted::no);
-    BOOST_REQUIRE_EQUAL(val.definition, string_def0);
+    BOOST_REQUIRE_EQUAL(val.schema.def, string_def0);
 
     // Second insert, expect id{1}, version{1}
     ins_res = s.insert({subject0, string_def0});
@@ -276,7 +276,7 @@ BOOST_AUTO_TEST_CASE(test_store_get_subject_schema) {
     BOOST_REQUIRE_EQUAL(val.id, pps::schema_id{1});
     BOOST_REQUIRE_EQUAL(val.version, pps::schema_version{1});
     BOOST_REQUIRE_EQUAL(val.deleted, pps::is_deleted::no);
-    BOOST_REQUIRE_EQUAL(val.definition, string_def0);
+    BOOST_REQUIRE_EQUAL(val.schema.def, string_def0);
 
     // Request bad version
     res = s.get_subject_schema(

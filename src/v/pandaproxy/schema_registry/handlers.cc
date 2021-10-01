@@ -267,10 +267,10 @@ post_subject(server::request_t rq, server::reply_t rp) {
       std::move(req));
 
     auto json_rslt{json::rjson_serialize(post_subject_versions_version_response{
-      .sub{std::move(sub_schema.sub)},
+      .sub{std::move(sub_schema.schema.sub)},
       .id{sub_schema.id},
       .version{sub_schema.version},
-      .definition{std::move(sub_schema.definition)}})};
+      .definition{std::move(sub_schema.schema.def)}})};
     rp.rep->write_body("json", json_rslt);
     co_return rp;
 }
@@ -329,7 +329,7 @@ ss::future<ctx_server<service>::reply_t> get_subject_versions_version(
       .sub = sub,
       .id = get_res.id,
       .version = version,
-      .definition = std::move(get_res.definition)})};
+      .definition = std::move(get_res.schema.def)})};
     rp.rep->write_body("json", json_rslt);
     co_return rp;
 }
@@ -362,7 +362,7 @@ ss::future<ctx_server<service>::reply_t> get_subject_versions_version_schema(
     auto get_res = co_await rq.service().schema_store().get_subject_schema(
       sub, version, inc_del);
 
-    rp.rep->write_body("json", to_string(get_res.definition));
+    rp.rep->write_body("json", to_string(get_res.schema.def));
     co_return rp;
 }
 

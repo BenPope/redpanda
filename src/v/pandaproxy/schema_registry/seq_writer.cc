@@ -245,7 +245,7 @@ seq_writer::delete_subject_version(subject sub, schema_version version) {
           .seq{write_at}, .node{seq._node_id}, .sub{sub}, .version{version}};
         vlog(plog.debug, "seq_writer::delete_subject_version {}", key);
         auto value = schema_value{
-          .schema{.sub{sub}, .def{std::move(ss.definition)}},
+          .schema{std::move(ss.schema)},
           .version{version},
           .id{ss.id},
           .deleted{is_deleted::yes}};
