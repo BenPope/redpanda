@@ -193,7 +193,7 @@ struct referenced_schema {
         schema_version version{invalid_schema_version};
     };
 
-    subject sub;
+    subject sub{invalid_subject};
     schema_definition def{invalid_schema_definition};
     std::vector<reference> references;
 
