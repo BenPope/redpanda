@@ -264,8 +264,7 @@ post_subject(server::request_t rq, server::reply_t rp) {
 
     rq.req.reset();
 
-    auto sub_schema = co_await rq.service().schema_store().has_schema(
-      req.sub, req.def);
+    auto sub_schema = co_await rq.service().schema_store().has_schema(req);
 
     auto json_rslt{json::rjson_serialize(post_subject_versions_version_response{
       .sub{std::move(sub_schema.sub)},
@@ -470,8 +469,7 @@ compatibility_subject_version(server::request_t rq, server::reply_t rp) {
     }
 
     auto get_res = co_await get_or_load(rq, [&rq, &req, version]() {
-        return rq.service().schema_store().is_compatible(
-          req.sub, version, req.def);
+        return rq.service().schema_store().is_compatible(version, req);
     });
 
     auto json_rslt{
