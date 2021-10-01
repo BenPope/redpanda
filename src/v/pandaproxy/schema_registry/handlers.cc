@@ -287,7 +287,7 @@ post_subject_versions(server::request_t rq, server::reply_t rp) {
     rq.req.reset();
 
     auto schema_id = co_await rq.service().writer().write_subject_version(
-      req.sub, req.def);
+      std::move(req));
 
     auto json_rslt{
       json::rjson_serialize(post_subject_versions_response{.id{schema_id}})};
