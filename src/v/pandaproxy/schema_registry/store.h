@@ -134,10 +134,12 @@ public:
         auto s = BOOST_OUTCOME_TRYX(get_schema(v_id.id));
 
         return subject_schema{
-          .sub = sub,
+          .schema{
+            .sub{sub},
+            .def{std::move(s).definition},
+            .references{std::move(v_id.refs)}},
           .version = v_id.version,
           .id = v_id.id,
-          .definition = std::move(s).definition,
           .deleted = v_id.deleted};
     }
 

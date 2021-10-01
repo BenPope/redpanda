@@ -206,10 +206,9 @@ struct referenced_schema {
 
 ///\brief Complete description of a subject and schema for a version.
 struct subject_schema {
-    subject sub{invalid_subject};
+    referenced_schema schema;
     schema_version version{invalid_schema_version};
     schema_id id{invalid_schema_id};
-    schema_definition definition;
     is_deleted deleted{false};
 };
 

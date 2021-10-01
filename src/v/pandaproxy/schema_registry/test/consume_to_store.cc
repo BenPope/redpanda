@@ -111,7 +111,7 @@ SEASTAR_THREAD_TEST_CASE(test_consume_to_store) {
     auto s_res = s.get_subject_schema(
                     subject0, version0, pps::include_deleted::no)
                    .get();
-    BOOST_REQUIRE_EQUAL(s_res.definition, string_def0);
+    BOOST_REQUIRE_EQUAL(s_res.schema.def, string_def0);
 
     auto bad_schema_magic = pps::as_record_batch(
       pps::schema_key{sequence, node_id, subject0, version0, magic2},

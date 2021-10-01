@@ -130,7 +130,7 @@ ss::future<subject_schema> sharded_store::has_schema(referenced_schema ref) {
         try {
             auto res = co_await get_subject_schema(
               ref.sub, ver, include_deleted::no);
-            if (ref.def == res.definition) {
+            if (ref.def == res.schema.def) {
                 sub_schema.emplace(std::move(res));
                 break;
             }
@@ -180,10 +180,12 @@ ss::future<subject_schema> sharded_store::get_subject_schema(
     auto s = co_await get_schema(v_id.id);
 
     co_return subject_schema{
-      .sub = sub,
+      .schema{
+        .sub{sub},
+        .def{std::move(s.definition)},
+        .references{std::move(v_id.refs)}},
       .version = v_id.version,
       .id = v_id.id,
-      .definition = std::move(s.definition),
       .deleted = v_id.deleted};
 }
 
@@ -401,7 +403,7 @@ ss::future<bool> sharded_store::is_compatible(
     auto new_schema_type = get_schema_type(ref.def);
 
     // Types must always match
-    if (get_schema_type(old_schema.definition) != new_schema_type) {
+    if (get_schema_type(old_schema.schema.def) != new_schema_type) {
         co_return false;
     }
 
