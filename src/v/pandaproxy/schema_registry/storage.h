@@ -335,6 +335,21 @@ inline void rjson_serialize(
         w.Key("schemaType");
         ::json::rjson_serialize(w, to_string_view(type));
     }
+    if (!val.schema.references.empty()) {
+        w.Key("references");
+        w.StartArray();
+        for (const auto& ref : val.schema.references) {
+            w.StartObject();
+            w.Key("name");
+            ::json::rjson_serialize(w, ref.name);
+            w.Key("subject");
+            ::json::rjson_serialize(w, ref.sub);
+            w.Key("version");
+            ::json::rjson_serialize(w, ref.version);
+            w.EndObject();
+        }
+        w.EndArray();
+    }
     w.Key("schema");
     ::json::rjson_serialize(w, to_string(val.schema.def));
     w.Key("deleted");
@@ -353,6 +368,11 @@ class schema_value_handler final : public json::base_handler<Encoding> {
         id,
         definition,
         deleted,
+        references,
+        reference,
+        reference_name,
+        reference_subject,
+        reference_version,
     };
     state _state = state::empty;
 
@@ -375,6 +395,18 @@ public:
                                      .match("schema", state::definition)
                                      .match("id", state::id)
                                      .match("deleted", state::deleted)
+                                     .match("references", state::references)
+                                     .default_match(std::nullopt)};
+            if (s.has_value()) {
+                _state = *s;
+            }
+            return s.has_value();
+        }
+        case state::reference: {
+            std::optional<state> s{string_switch<std::optional<state>>(sv)
+                                     .match("name", state::reference_name)
+                                     .match("subject", state::reference_subject)
+                                     .match("version", state::reference_version)
                                      .default_match(std::nullopt)};
             if (s.has_value()) {
                 _state = *s;
@@ -388,6 +420,10 @@ public:
         case state::id:
         case state::definition:
         case state::deleted:
+        case state::references:
+        case state::reference_name:
+        case state::reference_subject:
+        case state::reference_version:
             return false;
         }
         return false;
@@ -405,12 +441,21 @@ public:
             _state = state::object;
             return true;
         }
+        case state::reference_version: {
+            result.schema.references.back().version = schema_version{i};
+            _state = state::reference;
+            return true;
+        }
         case state::empty:
         case state::object:
         case state::subject:
         case state::type:
         case state::definition:
         case state::deleted:
+        case state::references:
+        case state::reference:
+        case state::reference_name:
+        case state::reference_subject:
             return false;
         }
         return false;
@@ -430,6 +475,11 @@ public:
         case state::type:
         case state::id:
         case state::definition:
+        case state::references:
+        case state::reference:
+        case state::reference_name:
+        case state::reference_subject:
+        case state::reference_version:
             return false;
         }
         return false;
@@ -457,22 +507,88 @@ public:
             }
             return type.has_value();
         }
+        case state::reference_name: {
+            result.schema.references.back().name = ss::sstring{sv};
+            _state = state::reference;
+            return true;
+        }
+        case state::reference_subject: {
+            result.schema.references.back().sub = subject{ss::sstring{sv}};
+            _state = state::reference;
+            return true;
+        }
         case state::empty:
         case state::object:
         case state::version:
         case state::id:
         case state::deleted:
+        case state::references:
+        case state::reference:
+        case state::reference_version:
             return false;
         }
         return false;
     }
 
     bool StartObject() {
-        return std::exchange(_state, state::object) == state::empty;
+        switch (_state) {
+        case state::empty: {
+            _state = state::object;
+            return true;
+        }
+        case state::references: {
+            result.schema.references.emplace_back();
+            _state = state::reference;
+            return true;
+        }
+        case state::object:
+        case state::subject:
+        case state::version:
+        case state::type:
+        case state::id:
+        case state::definition:
+        case state::deleted:
+        case state::reference:
+        case state::reference_name:
+        case state::reference_subject:
+        case state::reference_version:
+            return false;
+        }
+        return false;
     }
 
     bool EndObject(rapidjson::SizeType) {
-        return std::exchange(_state, state::empty) == state::object;
+        switch (_state) {
+        case state::object: {
+            _state = state::empty;
+            return true;
+        }
+        case state::reference: {
+            _state = state::references;
+            const auto& reference{result.schema.references.back()};
+            return !reference.name.empty() && reference.sub != invalid_subject
+                   && reference.version != invalid_schema_version;
+        }
+        case state::empty:
+        case state::subject:
+        case state::version:
+        case state::type:
+        case state::id:
+        case state::definition:
+        case state::deleted:
+        case state::references:
+        case state::reference_name:
+        case state::reference_subject:
+        case state::reference_version:
+            return false;
+        }
+        return false;
+    }
+
+    bool StartArray() { return _state == state::references; }
+
+    bool EndArray(rapidjson::SizeType) {
+        return std::exchange(_state, state::object) == state::references;
     }
 };
 
