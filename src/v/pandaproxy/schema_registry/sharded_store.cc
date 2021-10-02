@@ -49,10 +49,31 @@ ss::future<> sharded_store::start(ss::smp_service_group sg) {
 
 ss::future<> sharded_store::stop() { return _store.stop(); }
 
+ss::future<schema_definition>
+sharded_store::make_schema_definition(const referenced_schema& ref) {
+    auto def = co_await _store.invoke_on(
+      shard_for(ref.sub), _smp_opts, &store::make_schema_definition, ref);
+    co_return std::move(def).value();
+}
+
+ss::future<schema_definition>
+sharded_store::validate(const referenced_schema& ref) {
+    auto def = co_await _store.invoke_on(
+      shard_for(ref.sub), _smp_opts, &store::validate, ref);
+    co_return std::move(def).value();
+}
+
+ss::future<schema_definition>
+sharded_store::sanitize(const referenced_schema& ref) {
+    auto def = co_await _store.invoke_on(
+      shard_for(ref.sub), _smp_opts, &store::sanitize, ref);
+    co_return std::move(def).value();
+}
+
 ss::future<sharded_store::insert_result>
 sharded_store::project_ids(const referenced_schema& ref) {
     // Validate the schema (may throw)
-    validate(ref.def).value();
+    co_await validate(ref);
 
     // Check compatibility
     std::vector<schema_version> versions;
@@ -121,7 +142,9 @@ ss::future<bool> sharded_store::upsert(
 ss::future<subject_schema> sharded_store::has_schema(referenced_schema ref) {
     auto versions = co_await get_versions(ref.sub, include_deleted::no);
 
-    if (validate(ref.def).has_error()) {
+    try {
+        co_await validate(ref);
+    } catch (const exception& e) {
         throw as_exception(invalid_subject_schema(ref.sub));
     }
 
@@ -427,15 +450,16 @@ ss::future<bool> sharded_store::is_compatible(
         ver_it = versions.begin();
     }
 
-    auto new_parsed = validate(ref.def).value();
+    auto new_parsed = co_await make_schema_definition(ref);
     auto is_compat = true;
     for (; is_compat && ver_it != versions.end(); ++ver_it) {
         if (ver_it->deleted) {
             continue;
         }
 
-        auto old_schema = co_await get_schema(ver_it->id);
-        auto old_parsed = validate(std::move(old_schema.definition)).value();
+        auto old_schema = co_await get_subject_schema(
+          ref.sub, ver_it->version, include_deleted::no);
+        auto old_parsed = co_await make_schema_definition(old_schema.schema);
 
         if (
           compat == compatibility_level::backward

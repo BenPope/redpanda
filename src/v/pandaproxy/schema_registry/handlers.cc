@@ -263,6 +263,7 @@ post_subject(server::request_t rq, server::reply_t rp) {
 
     rq.req.reset();
 
+    req.def = co_await rq.service().schema_store().sanitize(req);
     auto sub_schema = co_await rq.service().schema_store().has_schema(
       std::move(req));
 
@@ -285,6 +286,7 @@ post_subject_versions(server::request_t rq, server::reply_t rp) {
     req.sub = sub;
     rq.req.reset();
 
+    req.def = co_await rq.service().schema_store().sanitize(req);
     auto schema_id = co_await rq.service().writer().write_subject_version(
       std::move(req));
 

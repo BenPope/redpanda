@@ -12,6 +12,8 @@
 #pragma once
 
 #include "pandaproxy/logger.h"
+#include "pandaproxy/schema_registry/avro.h"
+#include "pandaproxy/schema_registry/error.h"
 #include "pandaproxy/schema_registry/errors.h"
 #include "pandaproxy/schema_registry/schema_util.h"
 #include "pandaproxy/schema_registry/types.h"
@@ -60,6 +62,73 @@ make_non_const_iterator(T& container, result<typename T::const_iterator> it) {
 
 class store {
 public:
+    result<schema_definition>
+    make_schema_definition(const referenced_schema& ref) {
+        struct maker {
+            result<schema_definition>
+            operator()(const raw_schema_definition& def) const {
+                switch (get_schema_type(def)) {
+                case schema_type::avro:
+                    return BOOST_OUTCOME_TRYX(
+                      make_avro_schema_definition(def.def()));
+                case schema_type::protobuf:
+                case schema_type::json:
+                    return invalid_schema_type(def.type);
+                }
+                __builtin_unreachable();
+            }
+            result<schema_definition>
+            operator()(const avro_schema_definition& def) const {
+                return def;
+            }
+        };
+        return std::visit(maker{}, ref.def);
+    }
+
+    result<schema_definition> validate(const referenced_schema& ref) {
+        struct validator {
+            result<schema_definition>
+            operator()(const raw_schema_definition& def) const {
+                switch (get_schema_type(def)) {
+                case schema_type::avro:
+                    return BOOST_OUTCOME_TRYX(
+                      make_avro_schema_definition(def.def()));
+                case schema_type::protobuf:
+                case schema_type::json:
+                    return invalid_schema_type(def.type);
+                }
+                __builtin_unreachable();
+            }
+            result<schema_definition>
+            operator()(const avro_schema_definition& def) const {
+                return def;
+            }
+        };
+        return std::visit(validator{}, ref.def);
+    }
+
+    result<schema_definition> sanitize(const referenced_schema& ref) {
+        struct sanitizer {
+            result<schema_definition>
+            operator()(const raw_schema_definition& def) const {
+                switch (get_schema_type(def)) {
+                case schema_type::avro:
+                    return BOOST_OUTCOME_TRYX(
+                      sanitize_avro_schema_definition(def));
+                case schema_type::protobuf:
+                case schema_type::json:
+                    return invalid_schema_type(def.type);
+                }
+                __builtin_unreachable();
+            }
+            result<schema_definition>
+            operator()(const avro_schema_definition& def) const {
+                return def;
+            }
+        };
+        return std::visit(sanitizer{}, ref.def);
+    }
+
     struct insert_result {
         schema_version version;
         schema_id id;

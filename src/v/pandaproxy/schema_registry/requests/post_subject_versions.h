@@ -167,13 +167,7 @@ public:
         switch (_state) {
         case state::record: {
             _state = state::empty;
-            auto sanitized = sanitize(
-              std::move(std::get<raw_schema_definition>(result.def)));
-            bool succeeded = sanitized.has_value();
-            if (succeeded) {
-                result.def = std::move(sanitized).assume_value();
-            }
-            return succeeded;
+            return true;
         }
         case state::reference: {
             _state = state::references;

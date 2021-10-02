@@ -26,6 +26,16 @@ public:
     ss::future<> start(ss::smp_service_group sg);
     ss::future<> stop();
 
+    ///\brief Construct a schema in the native format
+    ss::future<schema_definition>
+    make_schema_definition(const referenced_schema& ref);
+
+    ///\brief Check the schema parses with the native format
+    ss::future<schema_definition> validate(const referenced_schema& ref);
+
+    ///\brief Provide a minimal check and normalise the input
+    ss::future<schema_definition> sanitize(const referenced_schema& ref);
+
     struct insert_result {
         schema_version version;
         schema_id id;

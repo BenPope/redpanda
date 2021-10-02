@@ -40,18 +40,6 @@ bool operator==(const schema_definition& lhs, const schema_definition& rhs) {
     return lhs.index() == rhs.index() && std::visit(equals{rhs}, lhs);
 }
 
-result<schema_definition>
-make_schema_definition(const raw_schema_definition& def) {
-    switch (def.type) {
-    case schema_type::avro:
-        return BOOST_OUTCOME_TRYX(make_avro_schema_definition(def.def()));
-    case schema_type::protobuf:
-    case schema_type::json:
-        return invalid_schema_type(def.type);
-    }
-    __builtin_unreachable();
-}
-
 schema_type get_schema_type(const schema_definition& def) {
     struct get_schema_type_impl {
         schema_type operator()(const raw_schema_definition& def) const {
@@ -74,30 +62,6 @@ ss::sstring to_string(const schema_definition& def) {
         }
     };
     return std::visit(stringer{}, def);
-}
-
-result<schema_definition> validate(schema_definition def) {
-    struct validator {
-        result<schema_definition>
-        operator()(const raw_schema_definition& def) const {
-            return make_schema_definition(def);
-        }
-        result<schema_definition> operator()(avro_schema_definition def) const {
-            return std::move(def);
-        }
-    };
-    return std::visit(validator{}, std::move(def));
-}
-
-result<raw_schema_definition> sanitize(raw_schema_definition def) {
-    switch (def.type) {
-    case schema_type::avro:
-        return sanitize_avro_schema_definition(std::move(def));
-    case schema_type::protobuf:
-    case schema_type::json:
-        return invalid_schema_type(def.type);
-    }
-    __builtin_unreachable();
 }
 
 bool check_compatible(
