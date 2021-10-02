@@ -15,6 +15,7 @@
 #include "pandaproxy/schema_registry/avro.h"
 #include "pandaproxy/schema_registry/error.h"
 #include "pandaproxy/schema_registry/errors.h"
+#include "pandaproxy/schema_registry/protobuf.h"
 #include "pandaproxy/schema_registry/types.h"
 
 #include <absl/container/btree_map.h>
@@ -61,6 +62,9 @@ make_non_const_iterator(T& container, result<typename T::const_iterator> it) {
 
 class store {
 public:
+    store()
+      : _protobuf_store{*this} {}
+
     result<canonical_schema> make_canonical_schema(unparsed_schema schema) {
         switch (schema.type()) {
         case schema_type::avro: {
@@ -70,6 +74,9 @@ public:
               std::move(schema.refs())};
         }
         case schema_type::protobuf:
+            return BOOST_OUTCOME_TRYX(
+              _protobuf_store.make_canonical_schema(schema));
+            return outcome::success();
         case schema_type::json:
             return invalid_schema_type(schema.type());
         }
@@ -85,7 +92,13 @@ public:
             }
             return outcome::success();
         }
-        case schema_type::protobuf:
+        case schema_type::protobuf: {
+            auto res = _protobuf_store.validate_schema(schema);
+            if (res.has_error()) {
+                return res.assume_error();
+            }
+            return outcome::success();
+        }
         case schema_type::json:
             return invalid_schema_type(schema.type());
         }
@@ -98,6 +111,8 @@ public:
             return BOOST_OUTCOME_TRYX(
               make_avro_schema_definition(schema.def().raw()()));
         case schema_type::protobuf:
+            return BOOST_OUTCOME_TRYX(
+              _protobuf_store.make_schema_definition(schema));
         case schema_type::json:
             return invalid_schema_type(schema.type());
         }
@@ -535,6 +550,8 @@ public:
         return !found;
     }
 
+    protobuf_store& proto_source_tree() { return _protobuf_store; }
+
 private:
     struct schema_entry {
         explicit schema_entry(canonical_schema_definition definition)
@@ -608,6 +625,7 @@ private:
 
     schema_map _schemas;
     subject_map _subjects;
+    protobuf_store _protobuf_store;
     compatibility_level _compatibility{compatibility_level::backward};
 };
 
