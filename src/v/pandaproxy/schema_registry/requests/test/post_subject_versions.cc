@@ -9,6 +9,8 @@
 
 #include "pandaproxy/schema_registry/requests/post_subject_versions.h"
 
+#include "pandaproxy/schema_registry/avro.h"
+#include "pandaproxy/schema_registry/types.h"
 #include "seastarx.h"
 
 #include <seastar/testing/thread_test_case.hh>
@@ -52,6 +54,9 @@ SEASTAR_THREAD_TEST_CASE(test_post_subject_versions_parser) {
 
     auto result{
       ppj::rjson_parse(payload.data(), pps::referenced_schema_handler{})};
+    result.def = pps::sanitize_avro_schema_definition(
+                   std::get<pps::raw_schema_definition>(result.def))
+                   .value();
 
     BOOST_REQUIRE_EQUAL(expected.def, result.def);
     BOOST_REQUIRE(get_schema_type(expected.def) == get_schema_type(result.def));

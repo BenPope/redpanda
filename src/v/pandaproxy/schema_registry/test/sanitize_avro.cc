@@ -47,12 +47,14 @@ pps::raw_schema_definition leading_dot_ns_sanitized{
 
 BOOST_AUTO_TEST_CASE(test_sanitize_avro_minify) {
     BOOST_REQUIRE_EQUAL(
-      pps::sanitize(not_minimal).value(), not_minimal_sanitized);
+      pps::sanitize_avro_schema_definition(not_minimal).value(),
+      not_minimal_sanitized);
 }
 
 BOOST_AUTO_TEST_CASE(test_sanitize_avro_name) {
     BOOST_REQUIRE_EQUAL(
-      pps::sanitize(leading_dot).value(), leading_dot_sanitized);
+      pps::sanitize_avro_schema_definition(leading_dot).value(),
+      leading_dot_sanitized);
 }
 
 BOOST_AUTO_TEST_CASE(test_sanitize_avro_name_ns) {
