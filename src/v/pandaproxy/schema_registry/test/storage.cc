@@ -43,13 +43,17 @@ constexpr std::string_view avro_schema_value_sv{
   "subject": "my-kafka-value",
   "version": 1,
   "id": 1,
+  "references": [
+    {"name": "name", "subject": "subject", "version": 1}
+  ],
   "schema": "{\"type\":\"string\"}",
   "deleted": true
 })"};
 const pps::schema_value avro_schema_value{
   .ref{
     pps::subject{"my-kafka-value"},
-    pps::schema_definition{R"({"type":"string"})", pps::schema_type::avro}},
+    pps::schema_definition{R"({"type":"string"})", pps::schema_type::avro},
+    {{{"name"}, pps::subject{"subject"}, pps::schema_version{1}}}},
   .version{pps::schema_version{1}},
   .id{pps::schema_id{1}},
   .deleted = pps::is_deleted::yes};
