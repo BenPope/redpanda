@@ -329,7 +329,8 @@ sanitize_avro_schema_definition(schema_definition def) {
     rapidjson::GenericDocument<rapidjson::UTF8<>> doc;
     constexpr auto flags = rapidjson::kParseDefaultFlags
                            | rapidjson::kParseStopWhenDoneFlag;
-    doc.Parse<flags>(def().data(), def().size());
+    const auto& raw = def.raw()();
+    doc.Parse<flags>(raw.data(), raw.size());
     if (doc.HasParseError()) {
         return error_info{
           error_code::schema_invalid,
@@ -343,11 +344,11 @@ sanitize_avro_schema_definition(schema_definition def) {
     if (res.has_error()) {
         return error_info{
           res.assume_error().code(),
-          fmt::format("{} {}", res.assume_error().message(), def())};
+          fmt::format("{} {}", res.assume_error().message(), raw)};
     }
 
     rapidjson::GenericStringBuffer<rapidjson::UTF8<>> str_buf;
-    str_buf.Reserve(def().size());
+    str_buf.Reserve(raw.size());
     rapidjson::Writer<rapidjson::StringBuffer> w{str_buf};
 
     if (!doc.Accept(w)) {
@@ -355,7 +356,8 @@ sanitize_avro_schema_definition(schema_definition def) {
     }
 
     return schema_definition{
-      ss::sstring{str_buf.GetString(), str_buf.GetSize()}};
+      std::string_view{str_buf.GetString(), str_buf.GetSize()},
+      schema_type::avro};
 }
 
 bool check_compatible(

@@ -34,9 +34,7 @@ SEASTAR_THREAD_TEST_CASE(test_avro_basic_backwards_store_compat) {
     auto avro = pps::schema_type::avro;
     s.upsert(
        dummy_marker,
-       sub,
-       pps::schema_definition{schema1},
-       avro,
+       {sub, pps::schema_definition{schema1}},
        pps::schema_id{1},
        pps::schema_version{1},
        pps::is_deleted::no)
@@ -44,13 +42,11 @@ SEASTAR_THREAD_TEST_CASE(test_avro_basic_backwards_store_compat) {
     // add a defaulted field
     BOOST_REQUIRE(
       s.is_compatible(
-         sub, pps::schema_version{1}, pps::schema_definition{schema2}, avro)
+         pps::schema_version{1}, {sub, pps::schema_definition{schema2}})
         .get());
     s.upsert(
        dummy_marker,
-       sub,
-       pps::schema_definition{schema2},
-       avro,
+       {sub, pps::schema_definition{schema2}},
        pps::schema_id{2},
        pps::schema_version{2},
        pps::is_deleted::no)
@@ -59,15 +55,13 @@ SEASTAR_THREAD_TEST_CASE(test_avro_basic_backwards_store_compat) {
     // Test non-defaulted field
     BOOST_REQUIRE(
       !s.is_compatible(
-          sub, pps::schema_version{1}, pps::schema_definition{schema3}, avro)
+          pps::schema_version{1}, {sub, pps::schema_definition{schema3}})
          .get());
 
     // Insert schema with non-defaulted field
     s.upsert(
        dummy_marker,
-       sub,
-       pps::schema_definition{schema2},
-       avro,
+       {sub, pps::schema_definition{schema2}},
        pps::schema_id{2},
        pps::schema_version{2},
        pps::is_deleted::no)
@@ -76,13 +70,13 @@ SEASTAR_THREAD_TEST_CASE(test_avro_basic_backwards_store_compat) {
     // Test Remove defaulted field to previous
     BOOST_REQUIRE(
       s.is_compatible(
-         sub, pps::schema_version{2}, pps::schema_definition{schema3}, avro)
+         pps::schema_version{2}, {sub, pps::schema_definition{schema3}})
         .get());
 
     // Test Remove defaulted field to first - should fail
     BOOST_REQUIRE(
       !s.is_compatible(
-          sub, pps::schema_version{1}, pps::schema_definition{schema3}, avro)
+          pps::schema_version{1}, {sub, pps::schema_definition{schema3}})
          .get());
 
     s.set_compatibility(pps::compatibility_level::backward_transitive).get();
@@ -90,6 +84,6 @@ SEASTAR_THREAD_TEST_CASE(test_avro_basic_backwards_store_compat) {
     // Test transitive defaulted field to previous - should fail
     BOOST_REQUIRE(
       !s.is_compatible(
-          sub, pps::schema_version{2}, pps::schema_definition{schema3}, avro)
+          pps::schema_version{2}, {sub, pps::schema_definition{schema3}})
          .get());
 }

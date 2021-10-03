@@ -94,8 +94,8 @@ private:
 ///\brief The definition of the schema.
 ///
 /// TODO(Ben): Make this cheap to copy
-using schema_definition = named_type<ss::sstring, struct schema_definition_tag>;
-static const schema_definition invalid_schema_definition{};
+using schema_definition = raw_schema_definition;
+static const schema_definition invalid_schema_definition{"", schema_type::avro};
 
 ///\brief The version of the schema registered with a subject.
 ///
@@ -149,13 +149,11 @@ struct seq_marker {
 
 ///\brief Complete description of a schema.
 struct schema {
-    schema(schema_id id, schema_type type, schema_definition definition)
+    schema(schema_id id, schema_definition definition)
       : id{id}
-      , type{type}
       , definition{std::move(definition)} {}
 
     schema_id id;
-    schema_type type;
     schema_definition definition;
 };
 
@@ -237,11 +235,9 @@ using subject_versions = std::vector<subject_version_id>;
 
 ///\brief Complete description of a subject and schema for a version.
 struct subject_schema {
-    subject sub{invalid_subject};
+    referenced_schema ref;
     schema_version version{invalid_schema_version};
     schema_id id{invalid_schema_id};
-    schema_type type{schema_type::avro};
-    schema_definition definition{invalid_schema_definition};
     is_deleted deleted{false};
 };
 

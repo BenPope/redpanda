@@ -219,7 +219,8 @@ BOOST_AUTO_TEST_CASE(test_avro_schema_definition) {
     // Parsing Canonical Form requires fields to be ordered:
     // name, type, fields, symbols, items, values, size
     pps::schema_definition expected{
-      R"({"type":"record","name":"myrecord","fields":[{"name":"f1","type":"string"},{"name":"f2","type":"string","default":"foo"}]})"};
+      R"({"type":"record","name":"myrecord","fields":[{"name":"f1","type":"string"},{"name":"f2","type":"string","default":"foo"}]})",
+      pps::schema_type::avro};
     static_assert(
       std::
         is_same_v<std::decay_t<decltype(schema2)>, pps::avro_schema_definition>,

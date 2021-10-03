@@ -24,20 +24,7 @@
 namespace pandaproxy::schema_registry {
 
 struct post_subject_versions_request {
-    struct schema_reference {
-        ss::sstring name;
-        subject sub{invalid_subject};
-        schema_version version{invalid_schema_version};
-    };
-
-    struct body {
-        schema_definition schema{invalid_schema_definition};
-        schema_type type{schema_type::avro};
-        std::vector<schema_reference> references;
-    };
-
-    subject sub;
-    body payload;
+    referenced_schema schema;
 };
 
 template<typename Encoding = rapidjson::UTF8<>>
@@ -58,11 +45,12 @@ class post_subject_versions_request_handler
 
 public:
     using Ch = typename json::base_handler<Encoding>::Ch;
-    using rjson_parse_result = post_subject_versions_request::body;
+    using rjson_parse_result = referenced_schema;
     rjson_parse_result result;
 
-    post_subject_versions_request_handler()
-      : json::base_handler<Encoding>{json::serialization_format::none} {}
+    explicit post_subject_versions_request_handler(subject sub)
+      : json::base_handler<Encoding>{json::serialization_format::none}
+      , result{std::move(sub), invalid_schema_definition} {}
 
     bool Key(const Ch* str, rapidjson::SizeType len, bool) {
         auto sv = std::string_view{str, len};
@@ -104,7 +92,7 @@ public:
     bool Uint(int i) {
         switch (_state) {
         case state::reference_version: {
-            result.references.back().version = schema_version{i};
+            result.refs().back().version = schema_version{i};
             _state = state::reference;
             return true;
         }
@@ -125,25 +113,26 @@ public:
         auto sv = std::string_view{str, len};
         switch (_state) {
         case state::schema: {
-            result.schema = schema_definition{ss::sstring{sv}};
+            result.def() = schema_definition{sv, result.type()};
             _state = state::record;
             return true;
         }
         case state::schema_type: {
             auto type = from_string_view<schema_type>(sv);
             if (type.has_value()) {
-                result.type = *type;
+                result.def() = schema_definition{
+                  std::move(result.raw_def()), *type};
                 _state = state::record;
             }
             return type.has_value();
         }
         case state::reference_name: {
-            result.references.back().name = ss::sstring{sv};
+            result.refs().back().name = ss::sstring{sv};
             _state = state::reference;
             return true;
         }
         case state::reference_subject: {
-            result.references.back().sub = subject{ss::sstring{sv}};
+            result.refs().back().sub = subject{ss::sstring{sv}};
             _state = state::reference;
             return true;
         }
@@ -164,7 +153,7 @@ public:
             return true;
         }
         case state::references: {
-            result.references.emplace_back();
+            result.refs().emplace_back();
             _state = state::reference;
             return true;
         }
@@ -183,17 +172,17 @@ public:
     bool EndObject(rapidjson::SizeType) {
         switch (_state) {
         case state::record: {
-            auto sanitized = sanitize(std::move(result.schema), result.type);
+            auto sanitized = sanitize(result.def());
             bool succeeded = sanitized.has_value();
             if (succeeded) {
-                result.schema = std::move(sanitized).assume_value();
+                result.def() = std::move(sanitized).assume_value();
                 _state = state::empty;
             }
             return succeeded;
         }
         case state::reference: {
             _state = state::references;
-            const auto& reference{result.references.back()};
+            const auto& reference{result.refs().back()};
             return !reference.name.empty() && reference.sub != invalid_subject
                    && reference.version != invalid_schema_version;
         }

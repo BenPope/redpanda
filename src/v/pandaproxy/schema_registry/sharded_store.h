@@ -32,20 +32,16 @@ public:
         bool inserted;
     };
 
-    ss::future<insert_result>
-    project_ids(subject sub, schema_definition def, schema_type type);
+    ss::future<insert_result> project_ids(const referenced_schema& ref);
 
     ss::future<bool> upsert(
       seq_marker marker,
-      subject sub,
-      schema_definition def,
-      schema_type type,
+      referenced_schema ref,
       schema_id id,
       schema_version version,
       is_deleted deleted);
 
-    ss::future<subject_schema>
-    has_schema(subject sub, schema_definition def, schema_type type);
+    ss::future<subject_schema> has_schema(const referenced_schema& ref);
 
     ///\brief Return a schema by id.
     ss::future<schema> get_schema(const schema_id& id);
@@ -108,15 +104,11 @@ public:
     ///
     /// If the compatibility level is transitive, then all versions are checked,
     /// otherwise checks are against the version provided and newer.
-    ss::future<bool> is_compatible(
-      const subject& sub,
-      schema_version version,
-      const schema_definition& new_schema,
-      schema_type new_schema_type);
+    ss::future<bool>
+    is_compatible(schema_version version, const referenced_schema& new_schema);
 
 private:
-    ss::future<bool>
-    upsert_schema(schema_id id, schema_definition def, schema_type type);
+    ss::future<bool> upsert_schema(schema_id id, schema_definition def);
 
     struct insert_subject_result {
         schema_version version;

@@ -24,7 +24,7 @@ struct avro_schema_definition
       named_type;
 
     explicit operator schema_definition() const {
-        return schema_definition{_value.toJson(false)};
+        return schema_definition{_value.toJson(false), schema_type::avro};
     }
 };
 
