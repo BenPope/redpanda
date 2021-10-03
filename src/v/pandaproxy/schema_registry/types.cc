@@ -46,4 +46,17 @@ std::ostream& operator<<(std::ostream& os, const raw_schema_definition& def) {
     return os;
 }
 
+std::ostream&
+operator<<(std::ostream& os, const referenced_schema::reference& ref) {
+    fmt::print(
+      os, "name: {}, subject: {}, version: {}", ref.name, ref.sub, ref.version);
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const referenced_schema& ref) {
+    fmt::print(
+      os, "subject: {}, {}, references: {}", ref.sub(), ref.def(), ref.refs());
+    return os;
+}
+
 } // namespace pandaproxy::schema_registry

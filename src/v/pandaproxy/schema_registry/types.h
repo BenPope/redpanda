@@ -159,6 +159,61 @@ struct schema {
     schema_definition definition;
 };
 
+///\brief A schema with its subject and references.
+class referenced_schema {
+public:
+    struct reference {
+        friend bool operator==(const reference& lhs, const reference& rhs)
+          = default;
+
+        friend std::ostream& operator<<(std::ostream& os, const reference& ref);
+
+        ss::sstring name;
+        subject sub{invalid_subject};
+        schema_version version{invalid_schema_version};
+    };
+    using references = std::vector<reference>;
+
+    referenced_schema() = default;
+
+    referenced_schema(subject sub, raw_schema_definition def)
+      : _sub{std::move(sub)}
+      , _def{std::move(def)} {}
+
+    referenced_schema(subject sub, raw_schema_definition def, references refs)
+      : _sub{std::move(sub)}
+      , _def{std::move(def)}
+      , _refs{std::move(refs)} {}
+
+    friend bool
+    operator==(const referenced_schema& lhs, const referenced_schema& rhs)
+      = default;
+
+    friend std::ostream&
+    operator<<(std::ostream& os, const referenced_schema& ref);
+
+    const subject& sub() const { return _sub; }
+    subject& sub() { return _sub; }
+
+    schema_type type() const { return _def.type(); }
+
+    raw_schema_definition def() const { return _def; }
+    raw_schema_definition& def() { return _def; }
+
+    const raw_schema_definition::raw_string& raw_def() const {
+        return _def.raw();
+    }
+    raw_schema_definition::raw_string& raw_def() { return _def.raw(); }
+
+    const references& refs() const { return _refs; }
+    references& refs() { return _refs; }
+
+private:
+    subject _sub{invalid_subject};
+    raw_schema_definition _def{"", schema_type::avro};
+    references _refs;
+};
+
 ///\brief A mapping of version and schema id for a subject.
 struct subject_version_id {
     subject_version_id(schema_version version, schema_id id, is_deleted deleted)
