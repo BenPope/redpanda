@@ -109,7 +109,8 @@ ss::future<bool> sharded_store::upsert(
   schema_version version,
   is_deleted deleted) {
     co_await upsert_schema(id, std::move(ref.def()));
-    co_return co_await upsert_subject(marker, ref.sub(), version, id, deleted);
+    co_return co_await upsert_subject(
+      marker, ref.sub(), std::move(ref.refs()), version, id, deleted);
 }
 
 ss::future<subject_schema>
@@ -175,7 +176,7 @@ ss::future<subject_schema> sharded_store::get_subject_schema(
     auto s = co_await get_schema(v_id.id);
 
     co_return subject_schema{
-      .ref = {sub, std::move(s.definition)},
+      .ref = {sub, std::move(s.definition), std::move(v_id.refs)},
       .version = v_id.version,
       .id = v_id.id,
       .deleted = v_id.deleted};
@@ -309,16 +310,22 @@ sharded_store::upsert_schema(schema_id id, schema_definition def) {
       shard_for(id), _smp_opts, &store::upsert_schema, id, std::move(def));
 }
 
-ss::future<sharded_store::insert_subject_result>
-sharded_store::insert_subject(subject sub, schema_id id) {
+ss::future<sharded_store::insert_subject_result> sharded_store::insert_subject(
+  subject sub, referenced_schema::references refs, schema_id id) {
     auto [version, inserted] = co_await _store.invoke_on(
-      shard_for(sub), _smp_opts, &store::insert_subject, sub, id);
+      shard_for(sub),
+      _smp_opts,
+      &store::insert_subject,
+      sub,
+      std::move(refs),
+      id);
     co_return insert_subject_result{version, inserted};
 }
 
 ss::future<bool> sharded_store::upsert_subject(
   seq_marker marker,
   subject sub,
+  referenced_schema::references refs,
   schema_version version,
   schema_id id,
   is_deleted deleted) {
@@ -328,6 +335,7 @@ ss::future<bool> sharded_store::upsert_subject(
       &store::upsert_subject,
       marker,
       sub,
+      std::move(refs),
       version,
       id,
       deleted);
@@ -372,7 +380,7 @@ ss::future<bool> sharded_store::is_compatible(
       versions.begin(),
       versions.end(),
       version,
-      [](const subject_version_id& lhs, schema_version rhs) {
+      [](const subject_version_entry& lhs, schema_version rhs) {
           return lhs.version < rhs;
       });
     if (ver_it == versions.end() || ver_it->version != version) {
