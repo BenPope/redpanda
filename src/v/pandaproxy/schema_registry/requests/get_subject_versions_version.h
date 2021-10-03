@@ -28,10 +28,30 @@ inline void rjson_serialize(
     w.StartObject();
     w.Key("subject");
     ::json::rjson_serialize(w, res.ref.sub());
-    w.Key("id");
-    ::json::rjson_serialize(w, res.id);
     w.Key("version");
     ::json::rjson_serialize(w, res.version);
+    w.Key("id");
+    ::json::rjson_serialize(w, res.id);
+    auto type = res.ref.type();
+    if (type != schema_type::avro) {
+        w.Key("schemaType");
+        ::json::rjson_serialize(w, to_string_view(type));
+    }
+    if (!res.ref.refs().empty()) {
+        w.Key("references");
+        w.StartArray();
+        for (const auto& ref : res.ref.refs()) {
+            w.StartObject();
+            w.Key("name");
+            ::json::rjson_serialize(w, ref.name);
+            w.Key("subject");
+            ::json::rjson_serialize(w, ref.sub);
+            w.Key("version");
+            ::json::rjson_serialize(w, ref.version);
+            w.EndObject();
+        }
+        w.EndArray();
+    }
     w.Key("schema");
     ::json::rjson_serialize(w, res.ref.raw_def());
     w.EndObject();
