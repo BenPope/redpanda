@@ -64,6 +64,33 @@ std::ostream& operator<<(std::ostream& os, const schema_type& v);
 using subject = named_type<ss::sstring, struct subject_tag>;
 static const subject invalid_subject{};
 
+///\brief An unvalidated definition of the schema and its type.
+class raw_schema_definition {
+public:
+    using raw_string = named_type<ss::sstring, struct raw_string_tag>;
+
+    template<typename T>
+    raw_schema_definition(T&& def, schema_type type)
+      : _def{ss::sstring{std::forward<T>(def)}}
+      , _type{type} {}
+
+    friend bool operator==(
+      const raw_schema_definition& lhs, const raw_schema_definition& rhs)
+      = default;
+
+    friend std::ostream&
+    operator<<(std::ostream& os, const raw_schema_definition& def);
+
+    schema_type type() const { return _type; }
+
+    const raw_string& raw() const { return _def; }
+    raw_string& raw() { return _def; }
+
+private:
+    raw_string _def;
+    schema_type _type{schema_type::avro};
+};
+
 ///\brief The definition of the schema.
 ///
 /// TODO(Ben): Make this cheap to copy

@@ -40,4 +40,10 @@ std::ostream& operator<<(std::ostream& os, const seq_marker& v) {
     return os;
 }
 
+std::ostream& operator<<(std::ostream& os, const raw_schema_definition& def) {
+    fmt::print(
+      os, "type: {}, definition: {}", to_string_view(def.type()), def.raw());
+    return os;
+}
+
 } // namespace pandaproxy::schema_registry
