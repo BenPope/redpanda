@@ -300,6 +300,9 @@ post_subject_versions(server::request_t rq, server::reply_t rp) {
     parse_accept_header(rq, rp);
     auto sub = parse::request_param<subject>(*rq.req, "subject");
     vlog(plog.debug, "post_subject_versions subject='{}'", sub);
+
+    co_await rq.service().writer().read_sync();
+
     auto unparsed = ppj::rjson_parse(
       rq.req->content.data(), post_subject_versions_request_handler<>{sub});
     rq.req.reset();
@@ -325,11 +328,10 @@ ss::future<ctx_server<service>::reply_t> get_subject_versions_version(
         .value_or(include_deleted::no)};
     rq.req.reset();
 
+    co_await rq.service().writer().read_sync();
+
     auto version = invalid_schema_version;
     if (ver == "latest") {
-        // We must sync to reliably say what is 'latest'
-        co_await rq.service().writer().read_sync();
-
         auto versions = co_await rq.service().schema_store().get_versions(
           sub, inc_del);
         if (versions.empty()) {
@@ -363,11 +365,10 @@ ss::future<ctx_server<service>::reply_t> get_subject_versions_version_schema(
         .value_or(include_deleted::no)};
     rq.req.reset();
 
+    co_await rq.service().writer().read_sync();
+
     auto version = invalid_schema_version;
     if (ver == "latest") {
-        // We must sync to reliably say what is 'latest'
-        co_await rq.service().writer().read_sync();
-
         auto versions = co_await rq.service().schema_store().get_versions(
           sub, inc_del);
         if (versions.empty()) {
