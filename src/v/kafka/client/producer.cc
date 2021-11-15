@@ -70,6 +70,7 @@ producer::produce(model::topic_partition tp, model::record_batch&& batch) {
 
 ss::future<produce_response::partition>
 producer::do_send(model::topic_partition tp, model::record_batch&& batch) {
+    vassert(!tp.topic().empty(), "topic should not be empty");
     return _topic_cache.leader(tp)
       .then([this](model::node_id leader) { return _brokers.find(leader); })
       .then([tp{std::move(tp)},
@@ -81,6 +82,7 @@ producer::do_send(model::topic_partition tp, model::record_batch&& batch) {
           auto topic = std::move(res.data.responses[0]);
           auto partition = std::move(topic.partitions[0]);
           if (partition.error_code != error_code::none) {
+              vassert(!topic.name().empty(), "topic should not be empty");
               return ss::make_exception_future<produce_response::partition>(
                 partition_error(
                   model::topic_partition(topic.name, partition.partition_index),
