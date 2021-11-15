@@ -103,14 +103,14 @@ producer::send(model::topic_partition tp, model::record_batch&& batch) {
       record_count);
     auto p_id = tp.partition;
     return ss::do_with(
+             tp,
              std::move(batch),
-             [this, tp](model::record_batch& batch) mutable {
+             [this](
+               model::topic_partition& tp, model::record_batch& batch) mutable {
                  return retry_with_mitigation(
                    _config.retries(),
                    _config.retry_base_backoff(),
-                   [this, tp{std::move(tp)}, &batch]() {
-                       return do_send(tp, batch.share());
-                   },
+                   [this, &tp, &batch]() { return do_send(tp, batch.share()); },
                    [this](std::exception_ptr ex) {
                        return _error_handler(std::move(ex))
                          .handle_exception([](std::exception_ptr ex) {
