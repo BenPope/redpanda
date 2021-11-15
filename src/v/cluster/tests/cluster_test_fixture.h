@@ -154,6 +154,10 @@ public:
         return _instances[id]->wait_for_controller_leadership();
     }
 
+    absl::flat_hash_map<model::node_id, fixture_ptr>& instances() {
+        return _instances;
+    }
+
 private:
     absl::flat_hash_map<model::node_id, fixture_ptr> _instances;
     ss::sstring _base_dir;
