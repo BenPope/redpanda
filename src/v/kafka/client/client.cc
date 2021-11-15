@@ -279,7 +279,9 @@ client::create_topic(kafka::creatable_topic req) {
 
 ss::future<list_offsets_response>
 client::list_offsets(model::topic_partition tp) {
+    vassert(!tp.topic().empty(), "topic should not be empty");
     return gated_retry_with_mitigation([this, tp]() {
+        vassert(!tp.topic().empty(), "topic should not be empty");
         return _topic_cache.leader(tp)
           .then(
             [this](model::node_id node_id) { return _brokers.find(node_id); })
