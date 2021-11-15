@@ -26,6 +26,7 @@
 #include "kafka/protocol/fetch.h"
 #include "kafka/protocol/list_offsets.h"
 #include "kafka/types.h"
+#include "utils/gate_guard.h"
 #include "utils/retry.h"
 #include "utils/unresolved_address.h"
 
@@ -76,16 +77,15 @@ public:
     /// \brief Invoke func, on failure, mitigate error and retry.
     template<typename Func>
     std::invoke_result_t<Func> gated_retry_with_mitigation(Func func) {
-        return ss::try_with_gate(_gate, [this, func{std::move(func)}]() {
-            return retry_with_mitigation(
-              _config.retries(),
-              _config.retry_base_backoff(),
-              [this, func{std::move(func)}]() {
-                  _gate.check();
-                  return func();
-              },
-              [this](std::exception_ptr ex) { return mitigate_error(ex); });
-        });
+        gate_guard g(_gate);
+        co_return co_await retry_with_mitigation(
+          _config.retries(),
+          _config.retry_base_backoff(),
+          [this, &func]() {
+              _gate.check();
+              return func();
+          },
+          [this](std::exception_ptr ex) { return mitigate_error(ex); });
     }
 
     /// \brief Dispatch a request to any broker.
@@ -96,10 +96,9 @@ public:
     ss::future<typename std::invoke_result_t<
       Func>::api_type::response_type> dispatch(Func func) {
         return gated_retry_with_mitigation([this, func{std::move(func)}]() {
-            return _brokers.any().then(
-              [func{std::move(func)}](shared_broker_t broker) mutable {
-                  return broker->dispatch(func());
-              });
+            return _brokers.any().then([func](shared_broker_t broker) {
+                return broker->dispatch(func());
+            });
         });
     }
 

@@ -68,14 +68,12 @@ producer::produce(model::topic_partition tp, model::record_batch&& batch) {
     return get_context(std::move(tp))->produce(std::move(batch));
 }
 
-ss::future<produce_response::partition>
-producer::do_send(model::topic_partition tp, model::record_batch&& batch) {
+ss::future<produce_response::partition> producer::do_send(
+  const model::topic_partition& tp, model::record_batch& batch) {
     return _topic_cache.leader(tp)
       .then([this](model::node_id leader) { return _brokers.find(leader); })
-      .then([tp{std::move(tp)},
-             batch{std::move(batch)}](shared_broker_t broker) mutable {
-          return broker->dispatch(
-            make_produce_request(std::move(tp), std::move(batch)));
+      .then([&tp, &batch](shared_broker_t broker) mutable {
+          return broker->dispatch(make_produce_request(tp, batch.share()));
       })
       .then([](produce_response res) mutable {
           auto topic = std::move(res.data.responses[0]);
@@ -99,16 +97,15 @@ producer::send(model::topic_partition tp, model::record_batch&& batch) {
       "send record_batch: {}, {{record_count: {}}}",
       tp,
       record_count);
-    auto p_id = tp.partition;
     return ss::do_with(
-             std::move(batch),
-             [this, tp](model::record_batch& batch) mutable {
-                 return retry_with_mitigation(
+      std::move(tp),
+      std::move(batch),
+      [this, record_count](
+        model::topic_partition& tp, model::record_batch& batch) mutable {
+          return retry_with_mitigation(
                    _config.retries(),
                    _config.retry_base_backoff(),
-                   [this, tp{std::move(tp)}, &batch]() {
-                       return do_send(tp, batch.share());
-                   },
+                   [this, &tp, &batch]() { return do_send(tp, batch); },
                    [this](std::exception_ptr ex) {
                        return _error_handler(std::move(ex))
                          .handle_exception([](std::exception_ptr ex) {
@@ -116,19 +113,20 @@ producer::send(model::topic_partition tp, model::record_batch&& batch) {
                                kclog.trace, "Error during mitigation: {}", ex);
                              // ignore failed mitigation
                          });
-                   });
-             })
-      .handle_exception([p_id](std::exception_ptr ex) {
-          return make_produce_response(p_id, std::move(ex));
-      })
-      .then([this, tp, record_count](produce_response::partition res) mutable {
-          vlog(
-            kclog.debug,
-            "sent record_batch: {}, {{record_count: {}}}, {}",
-            tp,
-            record_count,
-            res.error_code);
-          get_context(std::move(tp))->handle_response(std::move(res));
+                   })
+            .handle_exception([&tp](std::exception_ptr ex) {
+                return make_produce_response(tp.partition, std::move(ex));
+            })
+            .then([this, &tp, record_count](
+                    produce_response::partition res) mutable {
+                vlog(
+                  kclog.debug,
+                  "sent record_batch: {}, {{record_count: {}}}, {}",
+                  tp,
+                  record_count,
+                  res.error_code);
+                get_context(std::move(tp))->handle_response(std::move(res));
+            });
       });
 }
 
