@@ -10,20 +10,15 @@
 
 #include "archival/types.h"
 
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 
 namespace archival {
 
-static uint64_t to_milliseconds(ss::lowres_clock::duration interval) {
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(interval);
-    return ms.count();
-}
-
 std::ostream&
 operator<<(std::ostream& o, const std::optional<segment_time_limit>& tl) {
     if (tl) {
-        auto ms = to_milliseconds(tl.value()());
-        fmt::print(o, "{}", ms);
+        fmt::print(o, "{}", std::chrono::milliseconds(tl.value()));
     } else {
         fmt::print(o, "N/A");
     }
@@ -37,10 +32,10 @@ std::ostream& operator<<(std::ostream& o, const configuration& cfg) {
       "segment_upload_timeout: {}, "
       "manifest_upload_timeout: {}, time_limit: {}}}",
       cfg.bucket_name,
-      to_milliseconds(cfg.interval),
-      to_milliseconds(cfg.initial_backoff),
-      to_milliseconds(cfg.segment_upload_timeout),
-      to_milliseconds(cfg.manifest_upload_timeout),
+      std::chrono::milliseconds(cfg.interval),
+      std::chrono::milliseconds(cfg.initial_backoff),
+      std::chrono::milliseconds(cfg.segment_upload_timeout),
+      std::chrono::milliseconds(cfg.manifest_upload_timeout),
       cfg.time_limit);
     return o;
 }
