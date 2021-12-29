@@ -13,6 +13,8 @@
 #include "kafka/server/logger.h"
 #include "vlog.h"
 
+#include <fmt/chrono.h>
+
 #include <chrono>
 
 namespace kafka {
@@ -61,24 +63,21 @@ throttle_delay quota_manager::record_tp_and_throttle(
 
     auto rate = it->second.tp_rate.record_and_measure(bytes, now);
 
-    uint64_t delay_ms = 0;
+    std::chrono::milliseconds delay_ms(0);
     if (rate > _target_tp_rate) {
         auto diff = rate - _target_tp_rate;
-        double delay
-          = (diff / _target_tp_rate)
-            * (double)std::chrono::duration_cast<std::chrono::milliseconds>(
-                it->second.tp_rate.window_size())
-                .count();
-        delay_ms = static_cast<uint64_t>(delay);
+        double delay = (diff / _target_tp_rate)
+                       * (double)std::chrono::milliseconds(
+                           it->second.tp_rate.window_size())
+                           .count();
+        delay_ms = std::chrono::milliseconds(static_cast<uint64_t>(delay));
     }
-    uint64_t max_delay_ms
-      = std::chrono::duration_cast<std::chrono::milliseconds>(_max_delay)
-          .count();
+    std::chrono::milliseconds max_delay_ms(_max_delay);
     if (delay_ms > max_delay_ms) {
         vlog(
           klog.info,
           "Found data rate for window of: {} bytes. Client:{}, Estimated "
-          "backpressure delay of {}ms. Limiting to {}ms backpressure delay",
+          "backpressure delay of {}. Limiting to {} backpressure delay",
           rate,
           cid,
           delay_ms,
@@ -87,7 +86,7 @@ throttle_delay quota_manager::record_tp_and_throttle(
     }
 
     auto prev = it->second.delay;
-    it->second.delay = std::chrono::milliseconds(delay_ms);
+    it->second.delay = delay_ms;
 
     throttle_delay res{};
     res.first_violation = prev.count() == 0;
