@@ -25,6 +25,11 @@
 
 using namespace std::chrono_literals;
 
+static inline uint64_t to_milliseconds(ss::lowres_clock::duration d) {
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(d);
+    return ms.count();
+}
+
 /// Jitter
 thread_local static uint32_t fiber_count = 0;
 static constexpr size_t max_retry_chain_depth = 8;
@@ -43,13 +48,13 @@ retry_chain_node::retry_chain_node(
   ss::lowres_clock::time_point deadline,
   ss::lowres_clock::duration backoff)
   : _id(fiber_count++) // generate new head id
-  , _backoff{static_cast<uint16_t>(backoff.count())}
+  , _backoff{static_cast<uint16_t>(to_milliseconds(backoff))}
   , _deadline{deadline}
   , _parent() {
     vassert(
-      backoff.count() <= max_initial_backoff,
+      to_milliseconds(backoff) <= max_initial_backoff,
       "Initial backoff {}ms is too large",
-      backoff.count());
+      to_milliseconds(backoff));
 }
 
 retry_chain_node::retry_chain_node(
@@ -67,13 +72,13 @@ retry_chain_node::retry_chain_node(
   ss::lowres_clock::time_point deadline,
   ss::lowres_clock::duration backoff)
   : _id(fiber_count++) // generate new head id
-  , _backoff{static_cast<uint16_t>(backoff.count())}
+  , _backoff{static_cast<uint16_t>(to_milliseconds(backoff))}
   , _deadline{deadline}
   , _parent(&as) {
     vassert(
-      backoff.count() <= max_initial_backoff,
+      to_milliseconds(backoff) <= max_initial_backoff,
       "Initial backoff {}ms is too large",
-      backoff.count());
+      to_milliseconds(backoff));
 }
 
 retry_chain_node::retry_chain_node(
@@ -95,13 +100,13 @@ retry_chain_node::retry_chain_node(retry_chain_node* parent)
 retry_chain_node::retry_chain_node(
   ss::lowres_clock::duration backoff, retry_chain_node* parent)
   : _id(parent->add_child())
-  , _backoff{static_cast<uint16_t>(backoff.count())}
+  , _backoff{static_cast<uint16_t>(to_milliseconds(backoff))}
   , _deadline{parent->_deadline}
   , _parent{parent} {
     vassert(
-      backoff.count() <= max_initial_backoff,
+      to_milliseconds(backoff) <= max_initial_backoff,
       "Initial backoff {}ms is too large",
-      backoff.count());
+      to_milliseconds(backoff));
     auto len = get_len();
     vassert(
       len < max_retry_chain_depth, "Retry chain is too deep, {} >= 8", len);
@@ -112,13 +117,13 @@ retry_chain_node::retry_chain_node(
   ss::lowres_clock::duration backoff,
   retry_chain_node* parent)
   : _id(parent->add_child())
-  , _backoff{static_cast<uint16_t>(backoff.count())}
+  , _backoff{static_cast<uint16_t>(to_milliseconds(backoff))}
   , _deadline{deadline}
   , _parent{parent} {
     vassert(
-      backoff.count() <= max_initial_backoff,
+      to_milliseconds(backoff) <= max_initial_backoff,
       "Initial backoff {}ms is too large",
-      backoff.count());
+      to_milliseconds(backoff));
 
     if (auto parent = get_parent();
         parent != nullptr
@@ -202,7 +207,7 @@ retry_permit retry_chain_node::retry(retry_strategy st) {
 ss::lowres_clock::duration retry_chain_node::get_backoff() {
     auto backoff = ss::lowres_clock::duration(_backoff * (1UL << _retry));
     auto jitter = ss::lowres_clock::duration(
-      fast_prng_source() % backoff.count());
+      fast_prng_source() % to_milliseconds(backoff));
     return backoff + jitter;
 }
 
@@ -253,7 +258,7 @@ void retry_chain_node::format(fmt::memory_buffer& str) const {
             time_budget = _deadline - now;
         }
         // [fiber42~0~4|2|100ms]
-        fmt::format_to(str, "|{}|{}ms", _retry, time_budget.count());
+        fmt::format_to(str, "|{}|{}ms", _retry, to_milliseconds(time_budget));
     }
 }
 
