@@ -26,6 +26,7 @@
 
 #include <boost/beast/http/error.hpp>
 #include <boost/beast/http/field.hpp>
+#include <fmt/chrono.h>
 
 #include <exception>
 #include <variant>
@@ -33,11 +34,6 @@
 namespace cloud_storage {
 
 using namespace std::chrono_literals;
-
-static uint64_t to_milliseconds(ss::lowres_clock::duration interval) {
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(interval);
-    return ms.count();
-}
 
 enum class error_outcome {
     /// Error condition that could be retried
@@ -199,9 +195,9 @@ ss::future<download_result> remote::download_manifest(
         case error_outcome::retry:
             vlog(
               ctxlog.debug,
-              "Downloading manifest from {}, {}ms backoff required",
+              "Downloading manifest from {}, {} backoff required",
               bucket,
-              to_milliseconds(retry_permit.delay));
+              std::chrono::milliseconds(retry_permit.delay));
             _probe.manifest_download_backoff();
             co_await ss::sleep_abortable(retry_permit.delay, _as);
             retry_permit = fib.retry();
@@ -276,10 +272,10 @@ ss::future<upload_result> remote::upload_manifest(
         case error_outcome::retry:
             vlog(
               ctxlog.debug,
-              "Uploading manifest {} to {}, {}ms backoff required",
+              "Uploading manifest {} to {}, {} backoff required",
               path,
               bucket,
-              to_milliseconds(permit.delay));
+              std::chrono::milliseconds(permit.delay));
             _probe.manifest_upload_backoff();
             co_await ss::sleep_abortable(permit.delay, _as);
             permit = fib.retry();
@@ -364,10 +360,10 @@ ss::future<upload_result> remote::upload_segment(
         case error_outcome::retry:
             vlog(
               ctxlog.debug,
-              "Uploading segment {} to {}, {}ms backoff required",
+              "Uploading segment {} to {}, {} backoff required",
               path,
               bucket,
-              to_milliseconds(permit.delay));
+              std::chrono::milliseconds(permit.delay));
             _probe.upload_backoff();
             co_await ss::sleep_abortable(permit.delay, _as);
             permit = fib.retry();
@@ -437,9 +433,9 @@ ss::future<download_result> remote::download_segment(
         case error_outcome::retry:
             vlog(
               ctxlog.debug,
-              "Downloading segment from {}, {}ms backoff required",
+              "Downloading segment from {}, {} backoff required",
               bucket,
-              to_milliseconds(permit.delay));
+              std::chrono::milliseconds(permit.delay));
             _probe.download_backoff();
             co_await ss::sleep_abortable(permit.delay, _as);
             permit = fib.retry();
@@ -529,9 +525,9 @@ ss::future<download_result> remote::list_objects(
         case error_outcome::retry:
             vlog(
               ctxlog.debug,
-              "Listing objects in {}, {}ms backoff required",
+              "Listing objects in {}, {} backoff required",
               bucket,
-              to_milliseconds(permit.delay));
+              std::chrono::milliseconds(permit.delay));
             _probe.download_backoff();
             co_await ss::sleep_abortable(permit.delay, _as);
             permit = fib.retry();
