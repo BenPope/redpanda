@@ -27,7 +27,7 @@ struct fmt::formatter<seastar::sstring> {
 namespace ssx {
 
 template<typename... Args>
-seastar::sstring sformat(fmt::string_view format_str, Args&&... args) {
+seastar::sstring sformat(fmt::format_string<Args...> format_str, Args&&... args) {
     auto size = fmt::formatted_size(format_str, std::forward<Args>(args)...);
     seastar::sstring buffer(seastar::sstring::initialized_later{}, size);
     fmt::format_to(buffer.data(), format_str, std::forward<Args>(args)...);

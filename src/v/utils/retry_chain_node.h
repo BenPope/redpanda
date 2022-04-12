@@ -358,7 +358,9 @@ public:
       , _node(node)
       , _ctx(std::move(context)) {}
     template<typename... Args>
-    void log(ss::log_level lvl, const char* format, Args&&... args) const {
+    void
+    log(ss::log_level lvl, fmt::format_string<Args...> format, Args&&... args)
+      const {
         if (_log.is_enabled(lvl)) {
             auto lambda = [&](ss::logger& logger, ss::log_level lvl) {
                 auto msg = ssx::sformat(format, std::forward<Args>(args)...);
@@ -376,23 +378,23 @@ public:
         }
     }
     template<typename... Args>
-    void error(const char* format, Args&&... args) const {
+    void error(fmt::format_string<Args...> format, Args&&... args) const {
         log(ss::log_level::error, format, std::forward<Args>(args)...);
     }
     template<typename... Args>
-    void warn(const char* format, Args&&... args) const {
+    void warn(fmt::format_string<Args...> format, Args&&... args) const {
         log(ss::log_level::warn, format, std::forward<Args>(args)...);
     }
     template<typename... Args>
-    void info(const char* format, Args&&... args) const {
+    void info(fmt::format_string<Args...> format, Args&&... args) const {
         log(ss::log_level::info, format, std::forward<Args>(args)...);
     }
     template<typename... Args>
-    void debug(const char* format, Args&&... args) const {
+    void debug(fmt::format_string<Args...> format, Args&&... args) const {
         log(ss::log_level::debug, format, std::forward<Args>(args)...);
     }
     template<typename... Args>
-    void trace(const char* format, Args&&... args) const {
+    void trace(fmt::format_string<Args...> format, Args&&... args) const {
         log(ss::log_level::trace, format, std::forward<Args>(args)...);
     }
 
