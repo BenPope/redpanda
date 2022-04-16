@@ -242,9 +242,9 @@ void retry_chain_node::format(fmt::memory_buffer& str) const {
          id != ids.rend();
          ix++, id++) {
         if (ix == 0) {
-            fmt::format_to(str, "fiber{}", *id);
+            fmt_append(str, "fiber{}", *id);
         } else {
-            fmt::format_to(str, "~{}", *id);
+            fmt_append(str, "~{}", *id);
         }
     }
     if (_deadline != ss::lowres_clock::time_point::min()) {
@@ -254,7 +254,7 @@ void retry_chain_node::format(fmt::memory_buffer& str) const {
             time_budget = _deadline - now;
         }
         // [fiber42~0~4|2|100ms]
-        fmt::format_to(
+        fmt_append(
           str, "|{}|{}", _retry, std::chrono::milliseconds(time_budget));
     }
 }

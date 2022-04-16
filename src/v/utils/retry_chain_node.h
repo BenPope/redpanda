@@ -258,12 +258,13 @@ public:
     /// Generate formattend log prefix and add custom string into it:
     /// Example: [fiber42~3~1|2|100ms ns/topic/42]
     template<typename... Args>
-    ss::sstring operator()(const char* format_str, Args&&... args) const {
+    ss::sstring
+    operator()(fmt::format_string<Args...> format_str, Args&&... args) const {
         fmt::memory_buffer mbuf;
         mbuf.push_back('[');
         format(mbuf);
         mbuf.push_back(' ');
-        fmt::format_to(mbuf, format_str, std::forward<Args>(args)...);
+        fmt_append(mbuf, format_str, std::forward<Args>(args)...);
         mbuf.push_back(']');
         return ss::sstring(mbuf.data(), mbuf.size());
     }

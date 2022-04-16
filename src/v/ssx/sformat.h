@@ -24,10 +24,27 @@ struct fmt::formatter<seastar::sstring> {
     }
 };
 
+#if FMT_VERSION >= 80000
+template<typename... Args>
+void fmt_append(
+  fmt::memory_buffer& buf,
+  fmt::format_string<Args...> format_str,
+  Args&&... args) {
+    fmt::format_to(
+      std::back_inserter(buf), format_str, std::forward<Args>(args)...);
+}
+#else
+template<typename... Args>
+void fmt_append(fmt::memory_buffer& buf, Args&&... args) {
+    fmt::format_to(buf, std::forward<Args>(args)...);
+}
+#endif
+
 namespace ssx {
 
 template<typename... Args>
-seastar::sstring sformat(fmt::format_string<Args...> format_str, Args&&... args) {
+seastar::sstring
+sformat(fmt::format_string<Args...> format_str, Args&&... args) {
     auto size = fmt::formatted_size(format_str, std::forward<Args>(args)...);
     seastar::sstring buffer(seastar::sstring::initialized_later{}, size);
     fmt::format_to(buffer.data(), format_str, std::forward<Args>(args)...);
