@@ -218,6 +218,7 @@ private:
 };
 
 std::string_view to_string_view(feature);
+std::string_view to_string_view(feature_state::state);
 
 /**
  * To enable all shards to efficiently check enablement of features
@@ -309,3 +310,13 @@ private:
 };
 
 } // namespace cluster
+
+template<>
+struct fmt::formatter<cluster::feature_state::state> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.end(); }
+    template<typename FormatContext>
+    auto format(const cluster::feature_state::state& s, FormatContext& ctx) {
+        std::string_view sv = cluster::to_string_view(s);
+        return format_to(ctx.out(), "{}", sv);
+    }
+};
