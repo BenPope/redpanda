@@ -44,6 +44,28 @@
 #include <algorithm>
 #include <iterator>
 
+template<>
+struct fmt::formatter<raft::consensus::vote_state> {
+    using vote_state = raft::consensus::vote_state;
+    constexpr auto parse(format_parse_context& ctx) { return ctx.end(); }
+    template<typename FormatContext>
+    auto format(const vote_state& s, FormatContext& ctx) {
+        const char* str = "unknown";
+        switch (s) {
+        case vote_state::follower:
+            str = "follower";
+            break;
+        case vote_state::candidate:
+            str = "candidate";
+            break;
+        case vote_state::leader:
+            str = "leader";
+            break;
+        }
+        return format_to(ctx.out(), "{}", str);
+    }
+};
+
 namespace raft {
 
 static std::vector<model::record_batch_type>
