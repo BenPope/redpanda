@@ -14,7 +14,9 @@
 #include "rpc/demo/types.h"
 #include "seastarx.h"
 #include "utils/hdr_hist.h"
-
+// clang-format off
+#include "ssx/sformat.h"
+// clang-format on
 #include <seastar/core/fstream.hh>
 #include <seastar/core/reactor.hh>
 
