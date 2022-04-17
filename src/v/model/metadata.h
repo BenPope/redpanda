@@ -358,6 +358,25 @@ struct broker_v0 {
 } // namespace internal
 } // namespace model
 
+template<>
+struct fmt::formatter<model::isolation_level> {
+    using isolation_level = model::isolation_level;
+    constexpr auto parse(format_parse_context& ctx) { return ctx.end(); }
+    template<typename FormatContext>
+    auto format(const isolation_level& s, FormatContext& ctx) {
+        const char* str = "unknown";
+        switch (s) {
+        case isolation_level::read_uncommitted:
+            str = "read_uncommitted";
+            break;
+        case isolation_level::read_committed:
+            str = "read_committed";
+            break;
+        }
+        return format_to(ctx.out(), "{}", str);
+    }
+};
+
 namespace std {
 template<>
 struct hash<model::broker_shard> {
