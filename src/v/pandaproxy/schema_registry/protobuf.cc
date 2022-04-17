@@ -50,11 +50,7 @@ public:
         _errors.emplace_back(err{level::warn, line, column, message});
     }
 
-    error_info error() const {
-        return error_info{
-          error_code::schema_invalid,
-          fmt::format("{}", fmt::join(_errors, "; "))};
-    }
+    error_info error() const;
 
 private:
     friend struct fmt::formatter<err>;
@@ -83,11 +79,7 @@ public:
           level::warn, filename, element_name, descriptor, location, message});
     }
 
-    error_info error() const {
-        return error_info{
-          error_code::schema_invalid,
-          fmt::format("{}", fmt::join(_errors, "; "))};
-    }
+    error_info error() const;
 
 private:
     enum class level {
@@ -423,3 +415,14 @@ struct fmt::formatter<pandaproxy::schema_registry::dp_error_collector::err> {
           e.message);
     }
 };
+
+namespace pandaproxy::schema_registry {
+error_info io_error_collector::error() const {
+    return error_info{
+      error_code::schema_invalid, fmt::format("{}", fmt::join(_errors, "; "))};
+}
+error_info dp_error_collector::error() const {
+    return error_info{
+      error_code::schema_invalid, fmt::format("{}", fmt::join(_errors, "; "))};
+}
+} // namespace pandaproxy::schema_registry
