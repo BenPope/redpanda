@@ -341,13 +341,16 @@ class SecurityConfig:
     # the rules, so instead we use a fixed mapping and arrange for certs to use
     # a similar format. this will change when we get closer to GA and the
     # configuration becomes more general.
-    PRINCIPAL_MAPPING_RULES = "RULE:^O=Redpanda,CN=(.*?)$/$1/L, DEFAULT"
+    __DEFAULT_PRINCIPAL_MAPPING_RULES = "RULE:^O=Redpanda,CN=(.*?)$/$1/L, DEFAULT"
 
     def __init__(self):
         self.enable_sasl = False
         self.enable_authorization: Optional[bool] = None
         self.endpoint_authn_method: Optional[str] = None
         self.tls_provider: Optional[TLSProvider] = None
+
+        # The rules to extract principal from mtls
+        self.principal_mapping_rules = self.__DEFAULT_PRINCIPAL_MAPPING_RULES
 
     # sasl is required
     def sasl_enabled(self):
@@ -1289,8 +1292,8 @@ class RedpandaService(Service):
             )
             if self.mtls_identity_enabled():
                 tls_config.update(
-                    dict(principal_mapping_rules=SecurityConfig.
-                         PRINCIPAL_MAPPING_RULES, ))
+                    dict(principal_mapping_rules=self._security.
+                         principal_mapping_rules))
             doc = yaml.full_load(conf)
             doc["redpanda"].update(dict(kafka_api_tls=tls_config))
             conf = yaml.dump(doc)
@@ -1315,7 +1318,8 @@ class RedpandaService(Service):
             self.logger.debug(
                 f"Setting enable_authorization: {self._security.enable_authorization} in cluster configuration"
             )
-            conf.update(dict(enable_authorization=self._security.enable_authorization))
+            conf.update(
+                dict(enable_authorization=self._security.enable_authorization))
 
         conf_yaml = yaml.dump(conf)
         for node in self.nodes:
