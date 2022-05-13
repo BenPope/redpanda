@@ -363,7 +363,7 @@ struct fmt::formatter<model::isolation_level> {
     using isolation_level = model::isolation_level;
     constexpr auto parse(format_parse_context& ctx) { return ctx.end(); }
     template<typename FormatContext>
-    auto format(const isolation_level& s, FormatContext& ctx) {
+    auto format(const isolation_level& s, FormatContext& ctx) const {
         const char* str = "unknown";
         switch (s) {
         case isolation_level::read_uncommitted:

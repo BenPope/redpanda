@@ -384,7 +384,7 @@ struct fmt::formatter<pandaproxy::schema_registry::io_error_collector::err> {
     constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
 
     template<typename FormatContext>
-    auto format(const type::err& e, FormatContext& ctx) {
+    auto format(const type::err& e, FormatContext& ctx) const {
         return format_to(
           ctx.out(),
           "{}: line: '{}', col: '{}', msg: '{}'",
@@ -402,7 +402,7 @@ struct fmt::formatter<pandaproxy::schema_registry::dp_error_collector::err> {
     constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
 
     template<typename FormatContext>
-    auto format(const type::err& e, FormatContext& ctx) {
+    auto format(const type::err& e, FormatContext& ctx) const {
         return format_to(
           ctx.out(),
           "{}: subject: '{}', element_name: '{}', descriptor: '{}', location: "

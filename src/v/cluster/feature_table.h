@@ -315,7 +315,8 @@ template<>
 struct fmt::formatter<cluster::feature_state::state> {
     constexpr auto parse(format_parse_context& ctx) { return ctx.end(); }
     template<typename FormatContext>
-    auto format(const cluster::feature_state::state& s, FormatContext& ctx) {
+    auto
+    format(const cluster::feature_state::state& s, FormatContext& ctx) const {
         std::string_view sv = cluster::to_string_view(s);
         return format_to(ctx.out(), "{}", sv);
     }

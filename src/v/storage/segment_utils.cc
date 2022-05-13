@@ -59,7 +59,7 @@ struct fmt::formatter<storage::compacted_index::recovery_state> {
     using recovery_state = storage::compacted_index::recovery_state;
     constexpr auto parse(format_parse_context& ctx) { return ctx.end(); }
     template<typename FormatContext>
-    auto format(const recovery_state& s, FormatContext& ctx) {
+    auto format(const recovery_state& s, FormatContext& ctx) const {
         const char* str = "unknown";
         switch (s) {
         case recovery_state::missing:
