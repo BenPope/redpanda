@@ -261,11 +261,12 @@ public:
     ss::sstring
     operator()(fmt::format_string<Args...> format_str, Args&&... args) const {
         fmt::memory_buffer mbuf;
-        mbuf.push_back('[');
-        format(mbuf);
-        mbuf.push_back(' ');
-        fmt_append(mbuf, format_str, std::forward<Args>(args)...);
-        mbuf.push_back(']');
+        auto bii = std::back_insert_iterator(mbuf);
+        bii = '[';
+        format(bii);
+        bii = ' ';
+        fmt::format_to(bii, format_str, std::forward<Args>(args)...);
+        bii = ']';
         return ss::sstring(mbuf.data(), mbuf.size());
     }
 
@@ -305,7 +306,7 @@ public:
     ss::lowres_clock::time_point get_deadline() const;
 
 private:
-    void format(fmt::memory_buffer& str) const;
+    void format(std::back_insert_iterator<fmt::memory_buffer>& bii) const;
 
     uint16_t add_child();
 
