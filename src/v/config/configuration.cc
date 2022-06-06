@@ -237,6 +237,12 @@ configuration::configuration()
       "Disable registering metrics",
       base_property::metadata{},
       false)
+  , aggregate_metrics(
+      *this,
+      "aggregate_metrics",
+      "Enable default aggregatations for metrics",
+      {.needs_restart = needs_restart::yes},
+      true)
   , group_min_session_timeout_ms(
       *this,
       "group_min_session_timeout_ms",
