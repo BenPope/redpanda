@@ -96,6 +96,7 @@ public:
     ss::future<> stop();
 
 private:
+    ss::sstring _server_name;
     ss::httpd::http_server _server;
     ss::gate _pending_reqs;
     ss::api_registry_builder20 _api20;

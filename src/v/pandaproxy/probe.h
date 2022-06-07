@@ -20,7 +20,8 @@ namespace pandaproxy {
 
 class probe {
 public:
-    probe(ss::httpd::path_description& path_desc);
+    probe(
+      ss::httpd::path_description& path_desc, const ss::sstring& group_name);
     hdr_hist& hist() { return _request_hist; }
 
 private:
