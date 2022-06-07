@@ -263,10 +263,20 @@ get_boolean_query_param(const ss::httpd::request& req, std::string_view name) {
 }
 
 void admin_server::configure_metrics_route() {
-    ss::prometheus::config metrics_conf;
-    metrics_conf.metric_help = "redpanda metrics";
-    metrics_conf.prefix = "vectorized";
-    ss::prometheus::add_prometheus_routes(_server, metrics_conf).get();
+    ss::prometheus::add_prometheus_routes(
+      _server,
+      {.metric_help = "redpanda metrics",
+       .prefix = "vectorized",
+       .handle = ss::metrics::impl::default_handle()},
+      "/metrics")
+      .get();
+    ss::prometheus::add_prometheus_routes(
+      _server,
+      {.metric_help = "redpanda metrics",
+       .prefix = "redpanda",
+       .handle = ss::metrics::impl::default_handle() + 1},
+      "/metrics2")
+      .get();
 }
 
 ss::future<> admin_server::configure_listeners() {
