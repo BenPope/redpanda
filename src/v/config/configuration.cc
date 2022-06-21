@@ -18,6 +18,7 @@
 #include "units.h"
 
 #include <cstdint>
+#include <optional>
 
 namespace config {
 using namespace std::chrono_literals;
@@ -739,6 +740,12 @@ configuration::configuration()
       "Enable SASL authentication for Kafka connections.",
       {.needs_restart = needs_restart::no, .visibility = visibility::user},
       false)
+  , enable_authorization(
+      *this,
+      "enable_authorization",
+      "Enable authorization for Kafka connections.",
+      {.needs_restart = needs_restart::no, .visibility = visibility::user},
+      std::nullopt)
   , controller_backend_housekeeping_interval_ms(
       *this,
       "controller_backend_housekeeping_interval_ms",
