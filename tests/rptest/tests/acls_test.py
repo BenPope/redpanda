@@ -178,6 +178,16 @@ class AccessControlListTest(RedpandaTest):
                  use_sasl=False,
                  enable_authz=None,
                  authn_method="mtls_identity")
+    # ssl/tls conn + mtls for authn (new config, GA mtls config)
+    @parametrize(use_tls=True,
+                 use_sasl=False,
+                 enable_authz=True,
+                 authn_method="mtls_identity")
+    # ssl/tls conn + sasl for authn (new config)
+    @parametrize(use_tls=True,
+                 use_sasl=False,
+                 enable_authz=True,
+                 authn_method="sasl")
     def test_describe_acls(self, use_tls, use_sasl, enable_authz,
                            authn_method):
         """
