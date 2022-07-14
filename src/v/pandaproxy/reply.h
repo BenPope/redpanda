@@ -19,6 +19,7 @@
 #include "pandaproxy/json/types.h"
 #include "pandaproxy/logger.h"
 #include "pandaproxy/parsing/exceptions.h"
+#include "pandaproxy/probe.h"
 #include "pandaproxy/schema_registry/exceptions.h"
 #include "seastarx.h"
 
@@ -87,7 +88,7 @@ inline std::unique_ptr<ss::httpd::reply> unprocessable_entity(ss::sstring msg) {
       std::move(msg));
 }
 
-inline std::unique_ptr<ss::httpd::reply> exception_reply(std::exception_ptr e) {
+inline std::unique_ptr<ss::httpd::reply> exception_reply(std::exception_ptr e, http_status_metric::measurement* measure = nullptr) {
     try {
         std::rethrow_exception(e);
     } catch (const ss::gate_closed_exception& e) {
@@ -109,6 +110,10 @@ inline std::unique_ptr<ss::httpd::reply> exception_reply(std::exception_ptr e) {
           e.what()); // TODO BP: Yarr!!
     } catch (...) {
         vlog(plog.error, "{}", std::current_exception());
+        if (measure) {
+            using status_type = ss::httpd::reply::status_type;
+            measure->set_status(status_type{500});
+        }
         throw;
     }
 }

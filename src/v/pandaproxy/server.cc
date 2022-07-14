@@ -95,7 +95,7 @@ struct handler_adaptor : ss::httpd::handler_base {
             rp = co_await _handler(std::move(rq), std::move(rp));
         } catch (const std::exception& e) {
             auto eptr = std::current_exception();
-            auto rep = exception_reply(eptr);
+            auto rep = exception_reply(eptr, &measure);
             measure.set_status(rep->_status);
             std::rethrow_exception(eptr);
         }
