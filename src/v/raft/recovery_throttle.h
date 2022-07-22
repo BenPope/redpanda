@@ -13,7 +13,6 @@
 #include "raft/logger.h"
 #include "seastarx.h"
 
-#include <seastar/core/semaphore.hh>
 #include <seastar/core/smp.hh>
 #include <seastar/core/timer.hh>
 #include <seastar/util/later.hh>

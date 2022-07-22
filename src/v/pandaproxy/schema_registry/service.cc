@@ -27,7 +27,6 @@
 #include <seastar/core/coroutine.hh>
 #include <seastar/core/future-util.hh>
 #include <seastar/core/memory.hh>
-#include <seastar/core/semaphore.hh>
 #include <seastar/core/std-coroutine.hh>
 #include <seastar/http/api_docs.hh>
 

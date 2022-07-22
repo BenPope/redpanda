@@ -14,7 +14,6 @@
 #include "seastarx.h"
 
 #include <seastar/core/iostream.hh>
-#include <seastar/core/semaphore.hh>
 
 #include <cstddef>
 #include <memory>
