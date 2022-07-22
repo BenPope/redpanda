@@ -108,7 +108,7 @@ public:
         ss::lw_shared_ptr<net::connection> conn;
 
         server_probe& probe() { return _s->_probe; }
-        ss::semaphore& memory() { return _s->_memory; }
+        ss::named_semaphore& memory() { return _s->_memory; }
         hdr_hist& hist() { return _s->_hist; }
         ss::gate& conn_gate() { return _s->_conn_gate; }
         ss::abort_source& abort_source() { return _s->_as; }
@@ -179,7 +179,7 @@ private:
     void setup_public_metrics();
 
     std::unique_ptr<protocol> _proto;
-    ss::semaphore _memory;
+    ss::named_semaphore _memory;
     std::vector<std::unique_ptr<listener>> _listeners;
     boost::intrusive::list<net::connection> _connections;
     ss::abort_source _as;

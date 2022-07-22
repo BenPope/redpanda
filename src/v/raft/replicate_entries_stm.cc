@@ -102,7 +102,7 @@ replicate_entries_stm::send_append_entries_request(
 
     auto f = _ptr->_fstats.get_append_entries_unit(n).then_wrapped(
       [this, req = std::move(req), opts = std::move(opts), n](
-        ss::future<ss::semaphore_units<>> f) mutable {
+        ss::future<ssx::semaphore_units> f) mutable {
           // we want to signal dispatch semaphore after calling append entries.
           // When dispatch semaphore is released the append_entries_stm releases
           // op_lock so next append entries request can be dispatched to the

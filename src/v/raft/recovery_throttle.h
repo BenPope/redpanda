@@ -40,7 +40,7 @@ public:
     explicit recovery_throttle(config::binding<size_t> rate_binding)
       : _rate_binding(std::move(rate_binding))
       , _rate(get_per_core_rate())
-      , _sem{get_per_core_rate()}
+      , _sem{ssx::make_semaphore(get_per_core_rate(), "raft/recovery")}
       , _last_refresh(clock_type::now())
       , _refresh_timer([this] { handle_refresh(); }) {
         _rate_binding.watch([this]() { update_rate(); });
@@ -137,7 +137,7 @@ private:
 
     config::binding<size_t> _rate_binding;
     size_t _rate;
-    ss::semaphore _sem;
+    ss::named_semaphore _sem;
     clock_type::time_point _last_refresh;
     ss::timer<> _refresh_timer;
 };

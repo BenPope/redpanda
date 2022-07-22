@@ -21,11 +21,14 @@ namespace ssx {
 // We use named semaphores because the provided name will be included in
 // exception messages, making diagnoising broken or timed-out semaphores much
 // easier.
+
+// Use `make_samaphore(name)` to create these.
+using semaphore = seastar::named_semaphore;
 using semaphore_units
   = seastar::semaphore_units<seastar::named_semaphore_exception_factory>;
 
 template<typename T = seastar::sstring>
-seastar::named_semaphore make_semaphore(size_t count, T&& name) {
+semaphore make_semaphore(size_t count, T&& name) {
     return {
       count, seastar::named_semaphore_exception_factory{std::forward<T>(name)}};
 }

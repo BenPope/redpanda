@@ -21,11 +21,13 @@
 #include "pandaproxy/schema_registry/configuration.h"
 #include "pandaproxy/schema_registry/handlers.h"
 #include "pandaproxy/schema_registry/storage.h"
+#include "ssx/semaphore.h"
 #include "utils/gate_guard.h"
 
 #include <seastar/core/coroutine.hh>
 #include <seastar/core/future-util.hh>
 #include <seastar/core/memory.hh>
+#include <seastar/core/semaphore.hh>
 #include <seastar/core/std-coroutine.hh>
 #include <seastar/http/api_docs.hh>
 
@@ -220,7 +222,7 @@ service::service(
   sharded_store& store,
   ss::sharded<seq_writer>& sequencer)
   : _config(config)
-  , _mem_sem(max_memory)
+  , _mem_sem(ssx::make_semaphore(max_memory, "pproxy/schema-svc"))
   , _client(client)
   , _ctx{{{}, _mem_sem, {}, smp_sg}, *this}
   , _server(

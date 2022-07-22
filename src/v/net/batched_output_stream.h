@@ -73,7 +73,7 @@ private:
 
     ss::output_stream<char> _out;
     size_t _cache_size{0};
-    std::unique_ptr<ss::semaphore> _write_sem;
+    std::unique_ptr<ss::named_semaphore> _write_sem;
     size_t _unflushed_bytes{0};
     bool _closed = false;
 };

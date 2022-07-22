@@ -32,7 +32,7 @@ seastar::future<> slow(timed_mutex& mutex, int& counter) {
 seastar::future<>
 concurrent_increment(int num_fibers, int& variable, timed_mutex& mutex) {
     return seastar::do_with(
-      seastar::semaphore(0), [&mutex, &variable, num_fibers](auto& sem) {
+      seastar::named_semaphore(0), [&mutex, &variable, num_fibers](auto& sem) {
           for (int i = 0; i < num_fibers; i++) {
               (void)slow(mutex, variable).then([&sem] { sem.signal(1); });
           }
