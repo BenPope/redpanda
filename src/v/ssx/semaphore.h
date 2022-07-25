@@ -23,14 +23,19 @@ namespace ssx {
 // easier.
 
 // Use `make_samaphore(name)` to create these.
-using semaphore = seastar::named_semaphore;
-using semaphore_units
-  = seastar::semaphore_units<seastar::named_semaphore_exception_factory>;
+template<typename Clock = seastar::timer<>::clock>
+class named_semaphore
+  : public seastar::
+      basic_semaphore<seastar::named_semaphore_exception_factory, Clock> {
+public:
+    named_semaphore(size_t count, seastar::sstring name)
+      : seastar::
+        basic_semaphore<seastar::named_semaphore_exception_factory, Clock>(
+          count, seastar::named_semaphore_exception_factory{std::move(name)}) {}
+};
 
-template<typename T = seastar::sstring>
-semaphore make_semaphore(size_t count, T&& name) {
-    return {
-      count, seastar::named_semaphore_exception_factory{std::forward<T>(name)}};
-}
+using semaphore = named_semaphore<>;
+
+using semaphore_units = seastar::semaphore_units<semaphore::exception_factory>;
 
 } // namespace ssx
