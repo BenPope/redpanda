@@ -78,7 +78,7 @@ public:
     using time_point = typename ss::semaphore::time_point;
 
     explicit timed_mutex(bool should_tracing)
-      : _sem(ssx::make_semaphore(1, "timed-mutex"))
+      : _sem(1, "timed-mutex")
       , _is_tracing(should_tracing) {}
 
     ss::future<> start_tracing() {
@@ -153,7 +153,7 @@ public:
     }
 
 private:
-    ss::named_semaphore _sem;
+    ssx::semaphore _sem;
     bool _is_tracing{false};
     int64_t _lock_counter{0};
     std::chrono::steady_clock::time_point _acquired_at;

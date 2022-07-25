@@ -126,9 +126,8 @@ private:
     /// we keep a copy around until we finish the retries
     std::unique_ptr<append_entries_request> _req;
     absl::flat_hash_map<vnode, follower_req_seq> _followers_seq;
-    ss::named_semaphore _share_sem;
-    ss::named_semaphore _dispatch_sem{
-      ssx::make_semaphore(0, "raft/repl-dispatch")};
+    ssx::semaphore _share_sem;
+    ssx::semaphore _dispatch_sem{0, "raft/repl-dispatch"};
     ss::gate _req_bg;
     ctx_log _ctxlog;
     model::offset _dirty_offset;

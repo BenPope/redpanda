@@ -94,7 +94,7 @@ private:
     vote_request _req;
     bool _success = false;
     // for sequentiality/progress
-    ss::named_semaphore _sem;
+    ssx::semaphore _sem;
     std::optional<raft::group_configuration> _config;
     // for safety to wait for all bg ops
     ss::gate _vote_bg;

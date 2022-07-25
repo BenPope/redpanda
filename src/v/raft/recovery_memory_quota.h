@@ -36,7 +36,7 @@ private:
 
     configuration _cfg;
     size_t _current_max_recovery_mem;
-    ss::named_semaphore _memory;
+    ssx::semaphore _memory;
 };
 
 } // namespace raft

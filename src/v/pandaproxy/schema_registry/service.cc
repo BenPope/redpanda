@@ -221,7 +221,7 @@ service::service(
   sharded_store& store,
   ss::sharded<seq_writer>& sequencer)
   : _config(config)
-  , _mem_sem(ssx::make_semaphore(max_memory, "pproxy/schema-svc"))
+  , _mem_sem(max_memory, "pproxy/schema-svc")
   , _client(client)
   , _ctx{{{}, _mem_sem, {}, smp_sg}, *this}
   , _server(

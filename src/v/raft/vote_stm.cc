@@ -39,7 +39,7 @@ std::ostream& operator<<(std::ostream& o, const vote_stm::vmeta& m) {
 }
 vote_stm::vote_stm(consensus* p)
   : _ptr(p)
-  , _sem(ssx::make_semaphore(0, "raft/vote"))
+  , _sem(0, "raft/vote")
   , _ctxlog(_ptr->_ctxlog) {}
 
 vote_stm::~vote_stm() {

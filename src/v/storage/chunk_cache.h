@@ -105,7 +105,7 @@ private:
     }
 
     ss::chunked_fifo<chunk_ptr> _chunks;
-    ss::named_semaphore _sem{ssx::make_semaphore(0, "s/chunk-cache")};
+    ssx::semaphore _sem{0, "s/chunk-cache"};
     size_t _size_available{0};
     size_t _size_total{0};
     const size_t _size_target;

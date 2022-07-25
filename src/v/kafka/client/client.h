@@ -61,7 +61,7 @@ public:
 
 private:
     func _func;
-    ss::named_semaphore _lock{ssx::make_semaphore(1, "k/client")};
+    ssx::semaphore _lock{1, "k/client"};
 };
 
 class client {

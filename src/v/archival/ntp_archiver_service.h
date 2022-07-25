@@ -203,7 +203,7 @@ private:
     ss::lowres_clock::duration _cloud_storage_initial_backoff;
     ss::lowres_clock::duration _segment_upload_timeout;
     ss::lowres_clock::duration _manifest_upload_timeout;
-    ss::named_semaphore _mutex = ssx::make_semaphore(1, "archive/ntp");
+    ssx::semaphore _mutex{1, "archive/ntp"};
     ss::lowres_clock::duration _upload_loop_initial_backoff;
     ss::lowres_clock::duration _upload_loop_max_backoff;
     config::binding<std::chrono::milliseconds> _sync_manifest_timeout;

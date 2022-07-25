@@ -196,7 +196,7 @@ private:
 
     struct attached_partition {
         bool loading;
-        ss::named_semaphore sem{ssx::make_semaphore(1, "k/group-mgr")};
+        ssx::semaphore sem{1, "k/group-mgr"};
         ss::abort_source as;
         ss::lw_shared_ptr<cluster::partition> partition;
         ss::basic_rwlock<> catchup_lock;

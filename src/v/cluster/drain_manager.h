@@ -97,7 +97,7 @@ private:
     ss::sharded<cluster::partition_manager>& _partition_manager;
     std::optional<ss::future<>> _drain;
     bool _draining{false};
-    ss::named_semaphore _sem{ssx::make_semaphore(0, "c/drain-mgr")};
+    ssx::semaphore _sem{0, "c/drain-mgr"};
     drain_status _status;
     ss::abort_source _abort;
 };

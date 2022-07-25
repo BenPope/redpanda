@@ -125,7 +125,7 @@ private:
     uint64_t _total_cleaned;
     /// Current size of the cache directory (only used on shard 0)
     uint64_t _current_cache_size{0};
-    ss::named_semaphore _cleanup_sm{ssx::make_semaphore(1, "cloud/cache")};
+    ssx::semaphore _cleanup_sm{1, "cloud/cache"};
     std::set<std::filesystem::path> _files_in_progress;
     cache_probe probe;
     access_time_tracker _access_time_tracker;

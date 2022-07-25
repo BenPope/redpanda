@@ -35,7 +35,7 @@ public:
 
     // TODO constructor to pass through name & change callers.
     mutex()
-      : _sem(ssx::make_semaphore(1, "mutex")) {}
+      : _sem(1, "mutex") {}
 
     template<typename Func>
     auto with(Func&& func) noexcept {
@@ -67,5 +67,5 @@ public:
     size_t waiters() const noexcept { return _sem.waiters(); }
 
 private:
-    ss::named_semaphore _sem;
+    ssx::semaphore _sem;
 };

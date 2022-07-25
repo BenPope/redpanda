@@ -58,7 +58,7 @@ public:
       , _bitmask(0)
       , _max_size(max_size ? *max_size / read_ahead : 0)
       , _in(std::move(i))
-      , _sem(ssx::make_semaphore(read_ahead, "stream-fanout")) {
+      , _sem(read_ahead, "stream-fanout") {
         vassert(
           num_clients <= 10 && num_clients >= 2,
           "input_stream_fanout can have up to 10 clients, {} were given",
@@ -182,7 +182,7 @@ private:
     unsigned _bitmask;
     const size_t _max_size;
     ss::input_stream<Ch> _in;
-    ss::named_semaphore _sem;
+    ssx::semaphore _sem;
     ss::condition_variable _pcond;
     ring_buffer _buffer;
     ss::gate _gate;

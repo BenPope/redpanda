@@ -40,10 +40,8 @@ namespace storage {
  */
 class adjustable_allowance {
 public:
-    adjustable_allowance(uint64_t capacity)
-      : adjustable_allowance(capacity, "s/allowance") {}
-    adjustable_allowance(uint64_t capacity, const ss::sstring& sem_name)
-      : _sem(ssx::make_semaphore(capacity, sem_name))
+    explicit adjustable_allowance(uint64_t capacity)
+      : _sem(capacity, "s/allowance")
       , _capacity(capacity) {}
 
     void set_capacity(uint64_t capacity) noexcept {
@@ -91,7 +89,7 @@ public:
     size_t current() const noexcept { return _sem.current(); }
 
 private:
-    ss::named_semaphore _sem;
+    ssx::semaphore _sem;
 
     uint64_t _capacity;
 };

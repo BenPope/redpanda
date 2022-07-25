@@ -76,7 +76,7 @@ private:
       consistency_level);
 
     consensus* _ptr;
-    ss::named_semaphore _max_batch_size_sem;
+    ssx::semaphore _max_batch_size_sem;
     size_t _max_batch_size;
     std::vector<item_ptr> _item_cache;
     mutex _lock;

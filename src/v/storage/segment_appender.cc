@@ -55,9 +55,8 @@ static constexpr auto head_sem_name = "s/appender-head";
 segment_appender::segment_appender(ss::file f, options opts)
   : _out(std::move(f))
   , _opts(opts)
-  , _concurrent_flushes(ss::semaphore::max_counter())
-  , _prev_head_write(
-      ss::make_lw_shared<>(ssx::make_semaphore(1, head_sem_name)))
+  , _concurrent_flushes(ss::semaphore::max_counter(), "s/appender-flushes")
+  , _prev_head_write(ss::make_lw_shared<ssx::semaphore>(1, head_sem_name))
   , _inactive_timer([this] { handle_inactive_timer(); })
   , _chunk_size(config::shard_local_cfg().append_chunk_size()) {
     const auto alignment = _out.disk_write_dma_alignment();
@@ -514,8 +513,7 @@ void segment_appender::dispatch_background_head_write() {
      * dependency chain is reset for the next head.
      */
     if (full) {
-        _prev_head_write = ss::make_lw_shared<>(
-          ssx::make_semaphore(1, head_sem_name));
+        _prev_head_write = ss::make_lw_shared<ssx::semaphore>(1, head_sem_name);
     }
 }
 

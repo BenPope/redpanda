@@ -28,7 +28,7 @@ namespace raft {
 
 prevote_stm::prevote_stm(consensus* p)
   : _ptr(p)
-  , _sem(ssx::make_semaphore(0, "raft/prevote"))
+  , _sem(0, "raft/prevote")
   , _ctxlog(_ptr->group(), _ptr->ntp()) {}
 
 prevote_stm::~prevote_stm() {

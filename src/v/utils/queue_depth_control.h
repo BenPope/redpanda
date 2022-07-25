@@ -26,7 +26,7 @@ public:
       , _min_depth(min_depth)
       , _max_depth(max_depth)
       , _curr_depth(_idle_depth)
-      , _queue(ssx::make_semaphore(_curr_depth, "qdc")) {}
+      , _queue(_curr_depth, "qdc") {}
 
     void update(const double sample) {
         auto new_depth = static_cast<size_t>(
@@ -76,5 +76,5 @@ private:
     const size_t _min_depth;
     const size_t _max_depth;
     size_t _curr_depth;
-    ss::named_semaphore _queue;
+    ssx::semaphore _queue;
 };

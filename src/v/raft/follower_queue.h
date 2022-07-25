@@ -49,7 +49,7 @@ private:
      * - token-bucket based throughput limitter
      */
     uint32_t _max_concurrent_append_entries;
-    std::unique_ptr<ss::named_semaphore> _sem;
+    std::unique_ptr<ssx::semaphore> _sem;
 };
 
 } // namespace raft

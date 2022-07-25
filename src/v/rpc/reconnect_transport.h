@@ -53,8 +53,7 @@ private:
 
     rpc::transport _transport;
     rpc::clock_type::time_point _stamp{rpc::clock_type::now()};
-    ss::named_semaphore _connected_sem{
-      ssx::make_semaphore(1, "raft/connected")};
+    ssx::semaphore _connected_sem{1, "raft/connected"};
     ss::gate _dispatch_gate;
     backoff_policy _backoff_policy;
 };

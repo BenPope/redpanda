@@ -345,7 +345,7 @@ private:
             return ss::memory::stats().free_memory() < _min_free_memory;
         }
         bool _stopped = false;
-        ss::named_semaphore _change{ssx::make_semaphore(0, "s/batch-reclaim")};
+        ssx::semaphore _change{0, "s/batch-reclaim"};
         batch_cache& _cache;
         size_t _min_free_memory;
         ss::scheduling_group _sg;

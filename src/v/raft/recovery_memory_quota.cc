@@ -24,8 +24,7 @@ recovery_memory_quota::recovery_memory_quota(
   : _cfg(config_provider())
   , _current_max_recovery_mem(
       _cfg.max_recovery_memory().value_or(memory_groups::recovery_max_memory()))
-  , _memory(
-      ssx::make_semaphore(_current_max_recovery_mem, "raft/recovery-quota")) {
+  , _memory(_current_max_recovery_mem, "raft/recovery-quota") {
     _cfg.max_recovery_memory.watch([this] { on_max_memory_changed(); });
 }
 

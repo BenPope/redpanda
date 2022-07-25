@@ -57,7 +57,7 @@ transport::transport(
     .server_addr = std::move(c.server_addr),
     .credentials = std::move(c.credentials),
   })
-  , _memory(ssx::make_semaphore(c.max_queued_bytes, "rpc/transport-mem")) {
+  , _memory(c.max_queued_bytes, "rpc/transport-mem") {
     if (!c.disable_metrics) {
         setup_metrics(service_name);
     }

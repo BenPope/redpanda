@@ -33,8 +33,7 @@ namespace net {
 
 server::server(server_configuration c)
   : cfg(std::move(c))
-  , _memory(
-      ssx::make_semaphore(cfg.max_service_memory_per_core, "net/server-mem"))
+  , _memory(cfg.max_service_memory_per_core, "net/server-mem")
   , _public_metrics(ssx::metrics::public_metrics_handle) {}
 
 server::server(ss::sharded<server_configuration>* s)

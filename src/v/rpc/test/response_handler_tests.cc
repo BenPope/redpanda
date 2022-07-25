@@ -28,7 +28,7 @@ struct test_str_ctx final : public rpc::streaming_context {
     virtual void body_parse_exception(std::exception_ptr) final {}
 
     rpc::header hdr;
-    ss::named_semaphore s{ssx::make_semaphore(1, "rpc/mock-sc")};
+    ssx::semaphore s{1, "rpc/mock-sc"};
 };
 
 struct test_fixture {

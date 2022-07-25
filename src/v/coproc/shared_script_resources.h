@@ -36,8 +36,8 @@ struct shared_script_resources {
     simple_time_jitter<ss::lowres_clock> jitter{1s};
 
     /// Max amount of requests allowed to concurrently hold data in memory
-    ss::named_semaphore read_sem{ssx::make_semaphore(
-      config::shard_local_cfg().coproc_max_ingest_bytes.value(), "coproc/ssr")};
+    ssx::semaphore read_sem{
+      config::shard_local_cfg().coproc_max_ingest_bytes.value(), "coproc/ssr"};
 
     /// Underlying transport connection to the wasm engine
     rpc::reconnect_transport transport;

@@ -86,7 +86,7 @@ public:
                   units.release();
                   auto ex = f.get_exception();
                   _started_sem.broken(ex);
-                  _started_sem = ssx::make_semaphore(0, "pproxy/oneshot");
+                  _started_sem = ssx::semaphore(0, "pproxy/oneshot");
                   return futurator::make_exception_future(ex);
               }
 
@@ -97,7 +97,7 @@ public:
 
 private:
     ss::noncopyable_function<ss::future<>()> _func;
-    ss::named_semaphore _started_sem{ssx::make_semaphore(0, "pproxy/oneshot")};
+    ssx::semaphore _started_sem{0, "pproxy/oneshot"};
 };
 
 } // namespace pandaproxy::schema_registry
