@@ -33,9 +33,8 @@ public:
     using duration = typename ss::semaphore::duration;
     using time_point = typename ss::semaphore::time_point;
 
-    // TODO constructor to pass through name & change callers.
-    mutex()
-      : _sem(1, "mutex") {}
+    explicit mutex(ss::sstring name)
+      : _sem(1, std::move(name)) {}
 
     template<typename Func>
     auto with(Func&& func) noexcept {

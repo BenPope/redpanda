@@ -148,7 +148,7 @@ private:
 
     // Protects open/close of _data_file, to avoid double-opening on
     // concurrent calls to get()
-    mutex _open_lock;
+    mutex _open_lock{"s/segment-reader"};
 
     // This is only initialized if _data_file_refcount is greater than zero
     ss::file _data_file;

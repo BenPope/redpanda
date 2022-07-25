@@ -1846,7 +1846,7 @@ FIXTURE_TEST(committed_offset_updates, storage_test_fixture) {
           std::move(appender), model::no_timeout);
     };
 
-    mutex write_mutex;
+    mutex write_mutex{"write"};
     /**
      * Sequence of events is as follow:
      *

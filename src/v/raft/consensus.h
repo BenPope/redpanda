@@ -620,7 +620,7 @@ private:
 
     /// all raft operations must happen exclusively since the common case
     /// is for the operation to touch the disk
-    mutex _op_lock;
+    mutex _op_lock{"raft/concensus/op"};
     /// used for notifying when commits happened to log
     event_manager _event_manager;
     probe _probe;

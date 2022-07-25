@@ -153,7 +153,7 @@ private:
     std::vector<ntp_leader_revision> _requests;
     std::vector<net::unresolved_address> _seed_servers;
     broker_updates_t _pending_updates;
-    mutex _lock;
+    mutex _lock{"c/metadata-dissemination"};
     ss::timer<> _dispatch_timer;
     ss::abort_source _as;
     ss::gate _bg;

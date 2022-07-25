@@ -99,7 +99,7 @@ private:
 private:
     prefix_logger _logger;
 
-    mutex _lock;
+    mutex _lock{"c/archive/metadata-stm"};
 
     cloud_storage::partition_manifest _manifest;
     model::offset _start_offset;

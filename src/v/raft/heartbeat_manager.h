@@ -160,7 +160,7 @@ private:
 
     // private members
 
-    mutex _lock;
+    mutex _lock{"raft/hb"};
     clock_type::time_point _hbeat = clock_type::now();
     duration_type _heartbeat_interval;
     duration_type _heartbeat_timeout;

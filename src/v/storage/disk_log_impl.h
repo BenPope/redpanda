@@ -180,7 +180,7 @@ private:
     model::offset _start_offset;
     // Used to serialize updates to _start_offset. See the update_start_offset
     // method.
-    mutex _start_offset_lock;
+    mutex _start_offset_lock{"s/disk-log/start"};
     lock_manager _lock_mngr;
     storage::probe _probe;
     failure_probes _failure_probes;

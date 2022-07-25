@@ -143,7 +143,7 @@ protected:
      */
     ss::future<bool> sync(model::timeout_clock::duration);
 
-    mutex _op_lock;
+    mutex _op_lock{"c/persisted-stm"};
     std::vector<ss::lw_shared_ptr<expiring_promise<bool>>> _sync_waiters;
     ss::shared_promise<> _resolved_when_snapshot_hydrated;
     model::offset _last_snapshot_offset;

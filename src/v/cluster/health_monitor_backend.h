@@ -168,7 +168,7 @@ private:
 
     ss::timer<ss::lowres_clock> _tick_timer;
     ss::gate _gate;
-    mutex _refresh_mutex;
+    mutex _refresh_mutex{"c/health-be"};
     node::local_monitor _local_monitor;
 
     std::vector<std::pair<cluster::notification_id_type, health_node_cb_t>>

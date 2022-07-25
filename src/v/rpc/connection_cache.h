@@ -127,7 +127,7 @@ public:
     }
 
 private:
-    mutex _mutex; // to add/remove nodes
+    mutex _mutex{"rpc/conn-cache"}; // to add/remove nodes
     underlying _cache;
 };
 inline ss::shard_id connection_cache::shard_for(

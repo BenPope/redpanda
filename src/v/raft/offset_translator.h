@@ -140,7 +140,7 @@ private:
 
     size_t _map_version = 0;
 
-    mutex _checkpoint_lock;
+    mutex _checkpoint_lock{"raft/offset/checkpoint"};
 
     size_t _bytes_processed_at_checkpoint = 0;
     size_t _map_version_at_checkpoint = 0;

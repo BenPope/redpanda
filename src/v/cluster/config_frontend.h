@@ -63,7 +63,7 @@ private:
       config_version_unset}; // Only maintained on `version_shard`
 
     // Serialize writes to generate version numbers.
-    mutex _write_lock;
+    mutex _write_lock{"c/config-fe"};
 
     // Set once at construction to enable unit testing
     model::node_id _self;
