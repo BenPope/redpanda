@@ -53,21 +53,14 @@ class AccessControlListTest(RedpandaTest):
         # it with custom security settings
         return
 
-    def authz_enabled(self, use_sasl, enable_authz):
-        if enable_authz != None and enable_authz:
-            return True
-        elif enable_authz == None and use_sasl:
-            return True
-        else:
-            return False
+    def authz_enabled(self, use_sasl, enable_authz) -> bool:
+        if enable_authz is not None:
+            return enable_authz
+        return use_sasl
 
-    def authn_enabled(self, use_sasl, enable_authz, authn_method):
-        if authn_method != None:
-            return True
-        elif authn_method == None and enable_authz == None and use_sasl:
-            return True
-        else:
-            return False
+    def authn_enabled(self) -> bool:
+        return self.security.sasl_enabled(
+        ) or self.security.mtls_identity_enabled()
 
     def prepare_cluster(self,
                         use_tls: bool,
