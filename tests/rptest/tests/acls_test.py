@@ -6,8 +6,10 @@
 # As of the Change Date specified in that file, in accordance with
 # the Business Source License, use of this software will be governed
 # by the Apache License, Version 2.0
+import re
 import socket
 import time
+from ducktape.errors import TimeoutError
 from ducktape.mark import parametrize, matrix, ignore
 from ducktape.utils.util import wait_until
 from rptest.tests.redpanda_test import RedpandaTest
@@ -200,7 +202,12 @@ class AccessControlListTest(RedpandaTest):
         client_auth - Controls the value of require_client_auth RP config
     '''
 
-    @cluster(num_nodes=3)
+    @cluster(
+        num_nodes=3,
+        log_allow_list=[
+            re.compile(
+                "/var/lib/redpanda/redpanda.log: No such file or directory")
+        ])
     # Test cases with require_client_auth = True
     @ignore(use_tls=True,
             use_sasl=False,
@@ -543,11 +550,25 @@ class AccessControlListTest(RedpandaTest):
         """
         security::acl_operation::describe, security::default_cluster_name
         """
-        self.prepare_cluster(use_tls,
-                             use_sasl,
-                             enable_authz,
-                             authn_method,
-                             client_auth=client_auth)
+        def expect_startup_failure(use_tls: bool, authn_method: Optional[str],
+                                   client_auth: bool):
+            if authn_method == 'mtls_identity':
+                return not use_tls or not client_auth
+            return False
+
+        startup_should_fail = expect_startup_failure(use_tls, authn_method,
+                                                     client_auth)
+
+        try:
+            self.prepare_cluster(use_tls,
+                                 use_sasl,
+                                 enable_authz,
+                                 authn_method,
+                                 client_auth=client_auth)
+            assert not startup_should_fail
+        except TimeoutError:
+            assert startup_should_fail
+            return
 
         def should_pass_w_base_user(use_sasl: bool,
                                     enable_authz: Optional[bool]) -> bool:
