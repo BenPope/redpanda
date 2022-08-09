@@ -6,7 +6,6 @@
 # As of the Change Date specified in that file, in accordance with
 # the Business Source License, use of this software will be governed
 # by the Apache License, Version 2.0
-import re
 import socket
 import time
 from ducktape.errors import TimeoutError
@@ -202,12 +201,7 @@ class AccessControlListTest(RedpandaTest):
         client_auth - Controls the value of require_client_auth RP config
     '''
 
-    @cluster(
-        num_nodes=3,
-        log_allow_list=[
-            re.compile(
-                "/var/lib/redpanda/redpanda.log: No such file or directory")
-        ])
+    @cluster(num_nodes=3)
     @matrix(use_tls=[True, False],
             use_sasl=[True, False],
             enable_authz=[True, False, None],
@@ -227,6 +221,7 @@ class AccessControlListTest(RedpandaTest):
 
         startup_should_fail = expect_startup_failure(use_tls, authn_method,
                                                      client_auth)
+        self.redpanda.skip_if_no_redpanda_log(skip=startup_should_fail)
 
         try:
             self.prepare_cluster(use_tls,
