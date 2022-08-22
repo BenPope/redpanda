@@ -26,6 +26,8 @@ from rptest.services.redpanda import RedpandaService
 from rptest.clients.default import DefaultClient
 from rptest.services.verifiable_consumer import VerifiableConsumer
 from rptest.services.verifiable_producer import VerifiableProducer, is_int_with_prefix
+from rptest.clients.rpk import RpkTool
+from rptest.clients.rpk import RpkException
 
 TopicPartition = namedtuple('TopicPartition', ['topic', 'partition'])
 
@@ -89,6 +91,11 @@ class EndToEndTest(Test):
                                         extra_node_conf=self._extra_node_conf)
         self.redpanda.start()
         self._client = DefaultClient(self.redpanda)
+        self._rpk_client = RpkTool(self.redpanda)
+
+    def rpk_client(self):
+        assert self._rpk_client is not None
+        return self._rpk_client
 
     @property
     def s3_client(self):

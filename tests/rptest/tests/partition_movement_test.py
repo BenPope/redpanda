@@ -509,8 +509,7 @@ class PartitionMovementTest(PartitionMovementMixin, EndToEndTest):
 
         # create a single topic with replication factor of 1
         topic = 'test-topic'
-        rpk = RpkTool(self.redpanda)
-        rpk.create_topic(topic, 1, 1)
+        self.rpk_client().create_topic(topic, 1, 1)
         partition = 0
         num_records = 1000
 
@@ -572,11 +571,12 @@ class PartitionMovementTest(PartitionMovementMixin, EndToEndTest):
 
         wait_until(lambda: get_status() == 'in_progress', 10, 1)
         # delete the topic
-        rpk.delete_topic(topic)
+        self.rpk_client().delete_topic(topic)
+
         # start the node back up
         self.redpanda.start_node(node)
         # create topic again
-        rpk.create_topic(topic, 1, 1)
+        self.rpk_client().create_topic(topic, 1, 1)
         wait_until(lambda: get_status() == 'done', 10, 1)
 
 
