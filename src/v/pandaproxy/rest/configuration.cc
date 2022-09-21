@@ -83,4 +83,5 @@ configuration::configuration()
           }
           return msg;
       }) {}
+
 } // namespace pandaproxy::rest
