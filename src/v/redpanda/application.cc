@@ -671,7 +671,8 @@ void application::wire_up_services() {
           // TODO: Improve memory budget for services
           // https://github.com/redpanda-data/redpanda/issues/1392
           memory_groups::kafka_total_memory(),
-          std::reference_wrapper(_proxy_client))
+          std::reference_wrapper(_proxy_client),
+          controller.get())
           .get();
     }
     if (_schema_reg_config) {

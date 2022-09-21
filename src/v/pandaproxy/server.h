@@ -52,6 +52,8 @@ public:
     struct request_t {
         std::unique_ptr<ss::httpd::request> req;
         context_t& ctx;
+        credential_t user;
+        config::rest_authn_method authn_method;
         // will contain other extensions passed to user specific handler.
     };
 

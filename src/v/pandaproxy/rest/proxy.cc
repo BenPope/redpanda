@@ -9,10 +9,17 @@
 
 #include "pandaproxy/rest/proxy.h"
 
+#include "config/rest_authn_endpoint.h"
+#include "net/unresolved_address.h"
 #include "pandaproxy/api/api-doc/rest.json.h"
 #include "pandaproxy/logger.h"
+#include "pandaproxy/parsing/exceptions.h"
+#include "pandaproxy/parsing/from_chars.h"
 #include "pandaproxy/rest/configuration.h"
 #include "pandaproxy/rest/handlers.h"
+#include "pandaproxy/sharded_client_cache.h"
+#include "pandaproxy/types.h"
+#include "utils/gate_guard.h"
 
 #include <seastar/core/future-util.hh>
 #include <seastar/core/memory.hh>
@@ -20,7 +27,7 @@
 
 namespace pandaproxy::rest {
 
-using server = ctx_server<proxy>;
+using server = proxy::server;
 
 server::routes_t get_proxy_routes() {
     server::routes_t routes;
@@ -59,15 +66,21 @@ server::routes_t get_proxy_routes() {
     return routes;
 }
 
+struct always_true : public config::binding<bool> {
+    always_true()
+      : config::binding<bool>(true) {}
+};
+
 proxy::proxy(
   const YAML::Node& config,
   ss::smp_service_group smp_sg,
   size_t max_memory,
-  ss::sharded<kafka::client::client>& client)
+  ss::sharded<kafka::client::client>& client,
+  cluster::controller* controller)
   : _config(config)
   , _mem_sem(max_memory, "pproxy/mem")
   , _client(client)
-  , _ctx{{{}, _mem_sem, {}, smp_sg}, *this}
+  , _ctx{{{{}, _mem_sem, {}, smp_sg}, *this}, {always_true{}, controller}}
   , _server(
       "pandaproxy",
       "rest_proxy",

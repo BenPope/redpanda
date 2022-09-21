@@ -61,7 +61,7 @@ namespace pandaproxy::rest {
 
 namespace {
 
-using server = ctx_server<proxy>;
+using server = proxy::server;
 
 ss::shard_id consumer_shard(const kafka::group_id& g_id) {
     auto hash = xxhash_64(g_id().data(), g_id().length());
