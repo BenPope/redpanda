@@ -31,7 +31,9 @@ configuration::configuration()
     "pandaproxy_api",
     "Rest API listen address and port",
     {},
-    {model::broker_endpoint(net::unresolved_address("0.0.0.0", 8082))})
+    {config::rest_authn_endpoint{
+      .address = net::unresolved_address("0.0.0.0", 8082),
+      .authn_method = std::nullopt}})
   , pandaproxy_api_tls(
       *this,
       "pandaproxy_api_tls",
@@ -54,6 +56,31 @@ configuration::configuration()
       "consumer_instance_timeout_ms",
       "How long to wait for an idle consumer before removing it",
       {},
-      std::chrono::minutes{5}) {}
-
+      std::chrono::minutes{5})
+  , client_cache_max_size(
+      *this,
+      "client_cache_max_size",
+      "The maximum number of kafka clients in the LRU cache",
+      {.needs_restart = config::needs_restart::no},
+      10,
+      [](const int64_t& max_size) {
+          std::optional<ss::sstring> msg{std::nullopt};
+          if (max_size <= 0) {
+              msg = ss::sstring{"Client cache max size must be greater than 0"};
+          }
+          return msg;
+      })
+  , client_keep_alive(
+      *this,
+      "client_keep_alive",
+      "Time in milliseconds that an idle connection may remain open",
+      {.needs_restart = config::needs_restart::no, .example = "30000"},
+      (30000ms).count(),
+      [](const int64_t& keep_alive) {
+          std::optional<ss::sstring> msg{std::nullopt};
+          if (keep_alive <= 0) {
+              msg = ss::sstring{"Client keep alive must be greater than 0"};
+          }
+          return msg;
+      }) {}
 } // namespace pandaproxy::rest

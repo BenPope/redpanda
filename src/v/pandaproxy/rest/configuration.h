@@ -12,6 +12,7 @@
 #pragma once
 #include "config/config_store.h"
 #include "config/property.h"
+#include "config/rest_authn_endpoint.h"
 #include "config/tls_config.h"
 #include "model/metadata.h"
 
@@ -26,13 +27,15 @@ namespace pandaproxy::rest {
 /// All application modules depend on configuration. The configuration module
 /// can not depend on any other module to prevent cyclic dependencies.
 struct configuration final : public config::config_store {
-    config::one_or_many_property<model::broker_endpoint> pandaproxy_api;
+    config::one_or_many_property<config::rest_authn_endpoint> pandaproxy_api;
     config::one_or_many_property<config::endpoint_tls_config>
       pandaproxy_api_tls;
     config::one_or_many_property<model::broker_endpoint>
       advertised_pandaproxy_api;
     config::property<ss::sstring> api_doc_dir;
     config::property<std::chrono::milliseconds> consumer_instance_timeout;
+    config::property<int64_t> client_cache_max_size;
+    config::property<int64_t> client_keep_alive;
 
     configuration();
     explicit configuration(const YAML::Node& cfg);
