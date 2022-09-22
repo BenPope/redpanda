@@ -12,9 +12,9 @@
 #pragma once
 
 #include "cluster/fwd.h"
+#include "pandaproxy/fwd.h"
 #include "pandaproxy/rest/configuration.h"
 #include "pandaproxy/server.h"
-#include "pandaproxy/sharded_client_cache.h"
 #include "redpanda/request_auth.h"
 #include "seastarx.h"
 

@@ -63,7 +63,7 @@ configuration::configuration()
       "The maximum number of kafka clients in the LRU cache",
       {.needs_restart = config::needs_restart::no},
       10,
-      [](const int64_t& max_size) {
+      [](const size_t& max_size) {
           std::optional<ss::sstring> msg{std::nullopt};
           if (max_size <= 0) {
               msg = ss::sstring{"Client cache max size must be greater than 0"};
@@ -75,10 +75,10 @@ configuration::configuration()
       "client_keep_alive",
       "Time in milliseconds that an idle connection may remain open",
       {.needs_restart = config::needs_restart::no, .example = "30000"},
-      (30000ms).count(),
-      [](const int64_t& keep_alive) {
+      30000ms,
+      [](const std::chrono::milliseconds& keep_alive) {
           std::optional<ss::sstring> msg{std::nullopt};
-          if (keep_alive <= 0) {
+          if (keep_alive <= 0ms) {
               msg = ss::sstring{"Client keep alive must be greater than 0"};
           }
           return msg;

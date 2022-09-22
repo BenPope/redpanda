@@ -37,8 +37,8 @@ public:
     ss::future<> start(
       ss::smp_service_group sg,
       YAML::Node const& cfg,
-      config::binding<int64_t> max_size,
-      config::binding<model::timestamp::type> keep_alive);
+      config::binding<size_t> max_size,
+      config::binding<std::chrono::milliseconds> keep_alive);
 
     ss::future<> stop();
 
@@ -49,11 +49,10 @@ public:
       typename... Args,
       typename Ret = ss::futurize_t<
         std::invoke_result_t<Func, kafka_client_cache&, Args...>>>
-    Ret invoke_on_cache(credential_t user, Func&& func, Args&&... args) {
-        return ss::with_gate(_gate, [this, user, &func, &args...] {
-            // Access the cache on the appropriate
-            // shard please.
-            ss::shard_id u_shard{user_shard(user.name)};
+    Ret invoke_on_cache(credential_t const& user, Func&& func, Args&&... args) {
+        // Access the cache on the appropriate shard.
+        ss::shard_id u_shard{user_shard(user.name)};
+        return ss::with_gate(_gate, [this, u_shard, &func, &args...] {
             return _cache.invoke_on(
               u_shard,
               _smp_opts,

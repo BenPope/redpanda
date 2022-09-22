@@ -44,8 +44,8 @@ public:
       security::credential_user username,
       security::credential_password password,
       superuser is_superuser)
-      : _username(username)
-      , _password(password)
+      : _username(std::move(username))
+      , _password(std::move(password))
       , _authenticated(true)
       , _superuser(is_superuser){};
 

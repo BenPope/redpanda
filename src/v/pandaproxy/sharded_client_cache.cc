@@ -22,8 +22,8 @@ static constexpr auto clean_timer_period = 10s;
 ss::future<> sharded_client_cache::start(
   ss::smp_service_group sg,
   YAML::Node const& cfg,
-  config::binding<int64_t> max_size,
-  config::binding<model::timestamp::type> keep_alive) {
+  config::binding<size_t> max_size,
+  config::binding<std::chrono::milliseconds> keep_alive) {
     _smp_opts = ss::smp_submit_to_options{sg};
 
     _clean_timer.set_callback([this] {

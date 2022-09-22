@@ -17,11 +17,11 @@ namespace pandaproxy {
 
 kafka_client_cache::kafka_client_cache(
   YAML::Node const& cfg,
-  config::binding<int64_t> max_size,
-  config::binding<model::timestamp::type> keep_alive)
+  config::binding<size_t> max_size,
+  config::binding<std::chrono::milliseconds> keep_alive)
   : _config{cfg}
-  , _cache_max_size{max_size}
-  , _keep_alive{keep_alive} {}
+  , _cache_max_size{std::move(max_size)}
+  , _keep_alive{std::move(keep_alive)} {}
 
 client_ptr kafka_client_cache::make_client(
   credential_t user, config::rest_authn_method authn_method) {
@@ -46,38 +46,29 @@ client_ptr kafka_client_cache::fetch_or_insert(
     auto& inner_hash = _cache.get<underlying_hash>();
     auto it_hash = inner_hash.find(user.name);
 
-    client_ptr client{nullptr};
+    client_ptr client;
 
     // When no client is found ...
     if (it_hash == inner_hash.end()) {
-        // First remove the last used client if the
-        // cache is full.
-        if (static_cast<int64_t>(_cache.size()) >= _cache_max_size()) {
-            if (_cache.size() != 0) {
+        if (_cache.size() >= _cache_max_size()) {
+            if (!_cache.empty()) {
                 inner_list.pop_back();
             }
         }
 
         vlog(plog.debug, "Make client for user {}", user.name);
 
-        // Make a new client and insert it to the
-        // front. The timestamp is created and updated
-        // on client creation.
-        inner_list.emplace_front(
-          user.name, make_client(user, authn_method), model::new_timestamp());
-        client = inner_list.front().client;
+        client = make_client(user, authn_method);
+        inner_list.emplace_front(user.name, client);
     } else {
         // Otherwise the user has a client
         vlog(plog.debug, "Reuse client for user {}", user.name);
 
-        // Convert the hash iterator to list iterator
-        auto it_list = _cache.project<underlying_list>(it_hash);
-
         // Grab the node located at that position
-        auto node = inner_list.extract(it_list);
+        auto node = inner_hash.extract(it_hash);
 
         // Update the timestamp and put it to the front
-        node.value().last_used = model::timestamp::now();
+        node.value().last_used = timestamped_user::clock::now();
         client = node.value().client;
         inner_list.insert(inner_list.begin(), std::move(node));
     }
@@ -87,14 +78,13 @@ client_ptr kafka_client_cache::fetch_or_insert(
 
 void kafka_client_cache::clean_stale_clients() {
     auto& inner_list = _cache.get<underlying_list>();
-    inner_list.remove_if([this](const timestamped_user& item) {
-        auto live = (model::new_timestamp()() - item.last_used());
-
-        if (live >= _keep_alive()) {
+    auto now = timestamped_user::clock::now();
+    inner_list.remove_if([this, now](const timestamped_user& item) {
+        bool remove = (item.last_used + _keep_alive()) >= now;
+        if (remove) {
             vlog(plog.debug, "Removed {} from cache", item.username);
-            return true;
         }
-        return false;
+        return remove;
     });
 }
 

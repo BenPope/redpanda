@@ -20,6 +20,8 @@
 #include <seastar/net/ip.hh>
 #include <seastar/net/socket_defs.hh>
 
+#include <chrono>
+
 namespace pandaproxy::rest {
 
 /// Pandaproxy configuration
@@ -34,8 +36,8 @@ struct configuration final : public config::config_store {
       advertised_pandaproxy_api;
     config::property<ss::sstring> api_doc_dir;
     config::property<std::chrono::milliseconds> consumer_instance_timeout;
-    config::property<int64_t> client_cache_max_size;
-    config::property<int64_t> client_keep_alive;
+    config::property<size_t> client_cache_max_size;
+    config::property<std::chrono::milliseconds> client_keep_alive;
 
     configuration();
     explicit configuration(const YAML::Node& cfg);

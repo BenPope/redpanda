@@ -14,6 +14,7 @@
 #include "kafka/protocol/errors.h"
 #include "model/timestamp.h"
 
+#include <seastar/core/lowres_clock.hh>
 #include <seastar/core/shared_ptr.hh>
 
 #include <chrono>
@@ -23,14 +24,22 @@ namespace pandaproxy {
 using client_ptr = ss::lw_shared_ptr<kafka::client::client>;
 
 struct timestamped_user {
+    using clock = ss::lowres_clock;
+    using time_point = clock::time_point;
+
     ss::sstring username;
     client_ptr client;
-    model::timestamp last_used;
+    time_point last_used;
 
-    explicit timestamped_user(ss::sstring n, client_ptr c, model::timestamp t)
-      : username{n}
-      , client{c}
+    timestamped_user(ss::sstring n, client_ptr c, time_point t)
+      : username{std::move(n)}
+      , client{std::move(c)}
       , last_used{t} {}
+
+    timestamped_user(ss::sstring n, client_ptr c)
+      : username{std::move(n)}
+      , client{std::move(c)}
+      , last_used{clock::now()} {}
 };
 
 struct credential_t {

@@ -19,10 +19,7 @@
 #include <boost/multi_index/sequenced_index.hpp>
 #include <boost/multi_index_container.hpp>
 
-#include <utility>
-#include <vector>
-
-namespace bmi = boost::multi_index;
+#include <chrono>
 
 namespace pandaproxy {
 
@@ -35,29 +32,16 @@ class sharded_client_cache;
 // list. The hash is for constant time look-ups of the kafka clients.
 class kafka_client_cache {
 public:
-    // Tags used for indexing
-    struct underlying_list {};
-    struct underlying_hash {};
-
-    using underlying_t = bmi::multi_index_container<
-      timestamped_user,
-      bmi::indexed_by<
-        bmi::sequenced<bmi::tag<underlying_list>>,
-        bmi::hashed_unique<
-          bmi::tag<underlying_hash>,
-          bmi::
-            member<timestamped_user, ss::sstring, &timestamped_user::username>,
-          std::hash<ss::sstring>,
-          std::equal_to<>>>>;
-
     kafka_client_cache(
       YAML::Node const& cfg,
-      config::binding<int64_t> max_size,
-      config::binding<model::timestamp::type> keep_alive);
+      config::binding<size_t> max_size,
+      config::binding<std::chrono::milliseconds> keep_alive);
 
     ~kafka_client_cache() = default;
 
+    kafka_client_cache(kafka_client_cache&&) = default;
     kafka_client_cache(kafka_client_cache const&) = delete;
+    kafka_client_cache& operator=(kafka_client_cache&&) = delete;
     kafka_client_cache& operator=(kafka_client_cache const&) = delete;
 
     client_ptr
@@ -72,9 +56,24 @@ public:
     size_t max_size() const;
 
 private:
+    // Tags used for indexing
+    struct underlying_list {};
+    struct underlying_hash {};
+
+    using underlying_t = boost::multi_index::multi_index_container<
+      timestamped_user,
+      boost::multi_index::indexed_by<
+        boost::multi_index::sequenced<boost::multi_index::tag<underlying_list>>,
+        boost::multi_index::hashed_unique<
+          boost::multi_index::tag<underlying_hash>,
+          boost::multi_index::
+            member<timestamped_user, ss::sstring, &timestamped_user::username>,
+          std::hash<ss::sstring>,
+          std::equal_to<>>>>;
+
     kafka::client::configuration _config;
-    config::binding<int64_t> _cache_max_size;
-    config::binding<model::timestamp::type> _keep_alive;
+    config::binding<size_t> _cache_max_size;
+    config::binding<std::chrono::milliseconds> _keep_alive;
     underlying_t _cache;
 };
 } // namespace pandaproxy

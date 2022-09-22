@@ -37,6 +37,7 @@
 #include "pandaproxy/parsing/httpd.h"
 #include "pandaproxy/reply.h"
 #include "pandaproxy/rest/configuration.h"
+#include "pandaproxy/sharded_client_cache.h"
 #include "raft/types.h"
 #include "ssx/future-util.h"
 #include "ssx/sformat.h"
