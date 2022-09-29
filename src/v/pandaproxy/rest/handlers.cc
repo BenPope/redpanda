@@ -118,10 +118,7 @@ get_topics_names(server::request_t rq, server::reply_t rp) {
     auto make_list_topics_req = []() {
         return kafka::metadata_request{.list_all_topics = true};
     };
-    return rq.service()
-      .client()
-      .local()
-      .dispatch(make_list_topics_req)
+    return rq.dispatch(make_list_topics_req)
       .then([res_fmt, rp = std::move(rp)](
               kafka::metadata_request::api_type::response_type res) mutable {
           std::vector<model::topic_view> names;
