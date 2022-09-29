@@ -15,6 +15,8 @@
 #include "config/rest_authn_endpoint.h"
 #include "kafka/client/client.h"
 #include "pandaproxy/json/types.h"
+#include "pandaproxy/kafka_client_cache.h"
+#include "pandaproxy/sharded_client_cache.h"
 #include "pandaproxy/types.h"
 #include "redpanda/request_auth.h"
 #include "seastarx.h"
@@ -32,8 +34,19 @@
 #include <seastar/util/noncopyable_function.hh>
 
 #include <memory>
+#include <type_traits>
 
 namespace pandaproxy {
+
+namespace impl {
+
+template<typename T>
+concept KafkaRequestType = std::same_as<T, typename T::api_type::request_type>;
+
+template<typename F>
+concept KafkaRequestFactory = KafkaRequestType<std::invoke_result_t<F>>;
+
+} // namespace impl
 
 /// \brief wrapper around ss::httpd.
 ///
@@ -164,6 +177,27 @@ public:
         };
         // The service
         service_t& service() const { return context().service; };
+
+        template<std::invocable<kafka_client_cache&> Func>
+        auto dispatch(Func&& func) {
+            return context().client_cache.invoke_on_cache(
+              user, std::forward<Func>(func));
+        }
+
+        template<std::invocable<client_ptr> Func>
+        auto dispatch(Func&& func) {
+            return dispatch([this, &func](kafka_client_cache& cache) {
+                auto client = cache.fetch_or_insert(user, authn_method);
+                return std::forward<Func>(func)(client).finally([client] {});
+            });
+        }
+
+        template<impl::KafkaRequestFactory Func>
+        auto dispatch(Func&& func) {
+            return dispatch([&func](client_ptr client) {
+                return client->dispatch(std::forward<Func>(func));
+            });
+        }
 
         void authenticate() {
             authn_method = service().config().authn_method(
