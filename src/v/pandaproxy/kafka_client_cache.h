@@ -52,7 +52,7 @@ public:
     ss::future<client_ptr>
     fetch_or_insert(credential_t user, config::rest_authn_method authn_method);
 
-    void clean_stale_clients();
+    ss::future<> clean_stale_clients();
 
     size_t size() const;
     size_t max_size() const;
@@ -79,7 +79,6 @@ private:
     kafka::client::configuration _config;
     size_t _cache_max_size;
     std::chrono::milliseconds _keep_alive;
-    mutex _lock;
     underlying_t _cache;
     std::list<timestamped_user> _evicted_items;
 };

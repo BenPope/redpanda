@@ -58,7 +58,7 @@ ss::future<client_ptr> kafka_client_cache::fetch_or_insert(
                 auto item = inner_list.back();
                 vlog(plog.debug, "Cache size reached, evicting {}", item.key);
                 inner_list.pop_back();
-                _evicted_items.push_back(item);
+                _evicted_items.push_back(std::move(item));
             }
         }
 
@@ -67,31 +67,11 @@ ss::future<client_ptr> kafka_client_cache::fetch_or_insert(
         client = make_client(user, authn_method);
         inner_list.emplace_front(k, client);
     } else {
-        // Make a new client if the passwords don't match
+        // If the passwords don't match, update the password on the client, so
+        // that it can reconnect.
         if (it_hash->client->config().scram_password.value() != user.pass) {
-            vlog(plog.debug, "Password changed. Remake client for user {}", k);
-            client_ptr old = it_hash->client;
-            client_ptr next = make_client(user, authn_method);
-            co_await _lock.with([k, next] {
-                // Try connect as a safety check
-                return next->connect().handle_exception(
-                  [k](std::exception_ptr ex) {
-                      // The failed connection is dropped
-                      vlog(
-                        plog.debug,
-                        "Connection for {} already formed. Dropping dup: {}",
-                        k,
-                        ex);
-                  });
-            });
-
-            inner_hash.modify(
-              it_hash, [next](timestamped_user& item) { item.client = next; });
-
-            // Add a prefix to the evicted key so debugging logs
-            // is easier
-            _evicted_items.emplace_back(
-              k + random_generators::gen_alphanum_string(8), old);
+            vlog(plog.debug, "Updating password for user {}", k);
+            it_hash->client->config().scram_password.set_value(user.pass);
         } else {
             vlog(plog.debug, "Reuse client for user {}", k);
         }
@@ -113,70 +93,52 @@ ss::future<client_ptr> kafka_client_cache::fetch_or_insert(
 }
 
 namespace {
-template<typename List_Type>
-ss::future<> clean_clients_from_list(
-  List_Type& list, mutex& lock, std::chrono::milliseconds keep_alive) {
-    auto has_expired = timestamped_user::clock::now();
-    auto condition = [keep_alive, has_expired](const timestamped_user& item) {
-        return has_expired >= (item.last_used + keep_alive);
-    };
 
+template<typename List, typename Pred>
+ss::future<> remove_client_if(List& list, Pred pred) {
+    std::vector<typename List::value_type> remove;
     auto first = list.begin();
     auto last = list.end();
     while (first != last) {
-        if (condition(*first)) {
-            vlog(plog.debug, "Remove {} from cache", first->key);
-            // Stop client before erase
-            co_await lock.with([&first] {
-                return first->client->stop().handle_exception(
-                  [](std::exception_ptr ex) {
-                      // The stop failed
-                      vlog(
-                        plog.debug,
-                        "Stale client stop already happened {}",
-                        ex);
-                  });
-            });
+        if (pred(*first)) {
+            remove.push_back(std::move(*first));
             list.erase(first++);
         } else {
             ++first;
         }
     }
-}
-
-template<typename List_Type>
-ss::future<> stop_clients_until_empty(List_Type& list, mutex& lock) {
-    while (!list.empty()) {
-        co_await lock.with([&list] {
-            return list.back().client->stop().handle_exception(
-              [](std::exception_ptr ex) {
-                  // The stop failed
-                  vlog(plog.debug, "Stop already happened {}", ex);
-              });
-        });
-        list.pop_back();
+    for (auto& item : remove) {
+        co_await item.client->stop().handle_exception(
+          [&item](std::exception_ptr ex) {
+              // The stop failed
+              vlog(
+                plog.debug,
+                "Stale client {} stop already happened {}",
+                item.key,
+                ex);
+          });
     }
 }
+
 } // namespace
 
-// Modified boost remove_if so we can call kafka::client::stop
-// See sequenced_index_remove in
-// https://github.com/boostorg/multi_index/blob/develop/include/boost/multi_index/detail/seq_index_ops.hpp
-void kafka_client_cache::clean_stale_clients() {
+ss::future<> kafka_client_cache::clean_stale_clients() {
+    constexpr auto is_expired = [](std::chrono::milliseconds keep_alive) {
+        auto now = timestamped_user::clock::now();
+        return [keep_alive, now](const timestamped_user& item) {
+            return now >= (item.last_used + keep_alive);
+        };
+    };
     auto& inner_list = _cache.get<underlying_list>();
-    ssx::background = clean_clients_from_list(inner_list, _lock, _keep_alive);
-    ssx::background = clean_clients_from_list(
-      _evicted_items, _lock, _keep_alive);
+    co_await remove_client_if(inner_list, is_expired(_keep_alive));
+    co_await remove_client_if(_evicted_items, is_expired(_keep_alive));
 }
 
 ss::future<> kafka_client_cache::stop() {
+    constexpr auto always = [](auto&&) { return true; };
     auto& inner_list = _cache.get<underlying_list>();
-    ssx::background = stop_clients_until_empty(inner_list, _lock);
-    ssx::background = stop_clients_until_empty(_evicted_items, _lock);
-
-    // Must return future<void> because sharded::stop expects a return.
-    // See sharded_call_stop<true>::call in seastar/core/sharded.hh
-    return ss::now();
+    co_await remove_client_if(inner_list, always);
+    co_await remove_client_if(_evicted_items, always);
 }
 
 size_t kafka_client_cache::size() const { return _cache.size(); }

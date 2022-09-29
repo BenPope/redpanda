@@ -37,8 +37,9 @@ ss::future<> sharded_client_cache::start(
                     return cache.clean_stale_clients();
                 })
               .finally([this] {
-                  gate_guard guard{_gate};
-                  _clean_timer.arm(clean_timer_period);
+                  if (!_gate.is_closed()) {
+                      _clean_timer.arm(clean_timer_period);
+                  }
               });
         });
     });
