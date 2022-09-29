@@ -43,20 +43,13 @@ public:
 
     ss::future<> stop();
 
-    template<
-      typename Func,
-      typename... Args,
-      typename Ret = ss::futurize_t<
-        std::invoke_result_t<Func, kafka_client_cache&, Args...>>>
-    Ret invoke_on_cache(credential_t const& user, Func&& func, Args&&... args) {
+    template<std::invocable<kafka_client_cache&> Func>
+    auto invoke_on_cache(credential_t const& user, Func&& func) {
         // Access the cache on the appropriate shard.
         ss::shard_id u_shard{user_shard(user.name)};
-        return ss::with_gate(_gate, [this, u_shard, &func, &args...] {
+        return ss::with_gate(_gate, [this, u_shard, &func] {
             return _cache.invoke_on(
-              u_shard,
-              _smp_opts,
-              std::forward<Func>(func),
-              std::forward<Args>(args)...);
+              u_shard, _smp_opts, std::forward<Func>(func));
         });
     }
 

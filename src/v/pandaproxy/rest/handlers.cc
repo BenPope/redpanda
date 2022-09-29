@@ -90,10 +90,8 @@ get_brokers(server::request_t rq, server::reply_t rp) {
     auto handler = [user{rq.user},
                     authn_method{rq.authn_method},
                     make_metadata_req](kafka_client_cache& cache) mutable {
-        return cache.fetch_or_insert(user, authn_method)
-          .then([make_metadata_req](client_ptr client) {
-              return client->dispatch(make_metadata_req).finally([client] {});
-          });
+        auto client = cache.fetch_or_insert(user, authn_method);
+        return client->dispatch(make_metadata_req).finally([client] {});
     };
 
     return rq.service()

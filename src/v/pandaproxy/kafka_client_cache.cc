@@ -42,7 +42,7 @@ client_ptr kafka_client_cache::make_client(
       to_yaml(cfg, config::redact_secrets::no));
 }
 
-ss::future<client_ptr> kafka_client_cache::fetch_or_insert(
+client_ptr kafka_client_cache::fetch_or_insert(
   credential_t user, config::rest_authn_method authn_method) {
     auto& inner_list = _cache.get<underlying_list>();
     auto& inner_hash = _cache.get<underlying_hash>();
@@ -89,7 +89,7 @@ ss::future<client_ptr> kafka_client_cache::fetch_or_insert(
         inner_list.relocate(inner_list.begin(), it_list);
     }
 
-    co_return client;
+    return client;
 }
 
 namespace {

@@ -49,7 +49,7 @@ public:
     client_ptr
     make_client(credential_t user, config::rest_authn_method authn_method);
 
-    ss::future<client_ptr>
+    client_ptr
     fetch_or_insert(credential_t user, config::rest_authn_method authn_method);
 
     ss::future<> clean_stale_clients();
