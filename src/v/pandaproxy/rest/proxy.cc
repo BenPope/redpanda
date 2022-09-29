@@ -82,7 +82,7 @@ proxy::proxy(
   , _mem_sem(max_memory, "pproxy/mem")
   , _client(client)
   , _client_cache(client_cache)
-  , _ctx{{{{}, _mem_sem, {}, smp_sg}, *this}, {always_true{}, controller}}
+  , _ctx{{{{}, _mem_sem, {}, smp_sg}, *this}, {always_true{}, controller}, client_cache}
   , _server(
       "pandaproxy",
       "rest_proxy",

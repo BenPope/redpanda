@@ -145,6 +145,7 @@ class auth_ctx_server : public ctx_server<service_t> {
 public:
     struct context_t : base::context_t {
         request_authenticator authenticator;
+        sharded_client_cache& client_cache;
     };
 
     using base::ctx_server;
