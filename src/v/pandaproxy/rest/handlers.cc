@@ -47,6 +47,7 @@
 #include <seastar/core/coroutine.hh>
 #include <seastar/core/future.hh>
 #include <seastar/core/std-coroutine.hh>
+#include <seastar/coroutine/all.hh>
 #include <seastar/http/reply.hh>
 
 #include <absl/container/flat_hash_map.h>
@@ -160,10 +161,12 @@ get_topics_records(server::request_t rq, server::reply_t rp) {
       timeout,
       max_bytes);
 
-    return rq.service()
-      .client()
-      .local()
-      .fetch_partition(std::move(tp), offset, max_bytes, timeout)
+    return rq
+      .dispatch([tp{std::move(tp)}, offset, max_bytes, timeout](
+                  client_ptr client) mutable {
+          return client->fetch_partition(
+            std::move(tp), offset, max_bytes, timeout);
+      })
       .then([res_fmt, rp = std::move(rp)](kafka::fetch_response res) mutable {
           ::json::StringBuffer str_buf;
           ::json::Writer<::json::StringBuffer> w(str_buf);
