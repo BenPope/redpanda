@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go v0.46.3
 	github.com/AlecAivazis/survey/v2 v2.3.2
 	github.com/avast/retry-go v2.6.0+incompatible
-	github.com/aws/aws-sdk-go v1.25.43
+	github.com/aws/aws-sdk-go v1.33.0
 	github.com/beevik/ntp v0.3.0
 	github.com/cespare/xxhash v1.1.0
 	github.com/coreos/go-systemd/v22 v22.1.0
@@ -52,7 +52,7 @@ require (
 	github.com/gorilla/mux v1.7.3 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af // indirect
+	github.com/jmespath/go-jmespath v0.3.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/compress v1.15.4 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
