@@ -179,8 +179,7 @@ EOF
             f"Copying: {self.nodes[0].name}:{src} -> {node.name}:{dst}")
         node.account.ssh(f"mkdir -p {os.path.dirname(dst)}")
         self.nodes[0].account.copy_between(src, dst, node)
-        self.nodes[0].account.copy_between(src, "/node.keytab", node)
-        node.account.ssh(f"kinit {principal} -t {dst}")
+        node.account.ssh(f"kinit {principal} -kt {dst}")
         kl = node.account.ssh_capture(f"klist -k {dst}")
         self.logger.info(f"klist: {list(kl)}")
 
@@ -197,11 +196,10 @@ class KrbClient(Service):
     """
     A Kerberos KDC implementation backed by krb5-kdc (MIT).
     """
-    def __init__(self, context, kdc, redpanda, principal: str):
+    def __init__(self, context, kdc, redpanda):
         super(KrbClient, self).__init__(context, num_nodes=1)
         self.kdc = kdc
         self.redpanda = redpanda
-        self.principal = principal
         self.krb5_conf_path = KRB5_CONF_PATH
 
     def _render_cfg(self, node):
@@ -219,11 +217,15 @@ class KrbClient(Service):
     def clean_node(self, node):
         self.logger.warn(f"Cleaning node {node.name}")
 
-    def metadata(self):
+    def metadata(self, principal: str):
         self.logger.info("Metadata request")
+        client_cache = f"/tmp/{principal}.krb5ccache"
+        kinit_args = f"-kt {self.redpanda.PERSISTENT_ROOT}/client.keytab -c {client_cache} {principal}"
+        kinit_cmd = f"kinit -R {kinit_args} || kinit {kinit_args}"
+        sasl_conf = f"-X security.protocol=sasl_plaintext -X sasl.mechanisms=GSSAPI '-Xsasl.kerberos.kinit.cmd={kinit_cmd}' -X sasl.kerberos.service.name=redpanda"
         res = self.nodes[0].account.ssh_output(
             cmd=
-            f"KRB5_TRACE=/dev/stderr kcat -L -J -b {self.redpanda.brokers()} -X security.protocol=sasl_plaintext -X sasl.mechanisms=GSSAPI '-Xsasl.kerberos.kinit.cmd=kinit {self.principal} -t {self.redpanda.PERSISTENT_ROOT}/client.keytab' -X sasl.kerberos.service.name=redpanda",
+            f"KRB5_TRACE=/dev/stderr KRB5CCNAME={client_cache} kcat -L -J -b {self.redpanda.brokers()} {sasl_conf}",
             allow_fail=False,
             combine_stderr=False)
         self.logger.debug(f"Metadata request: {res}")

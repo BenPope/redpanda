@@ -10,9 +10,11 @@
 import socket
 import time
 
+from ducktape.cluster.remoteaccount import RemoteCommandError
+from ducktape.mark import parametrize
 from ducktape.tests.test import Test
 from ducktape.utils.util import wait_until
-from rptest.clients.kafka_cat import KafkaCat
+from rptest.clients.rpk import RpkTool
 from rptest.services.admin import Admin
 from rptest.services.cluster import cluster
 from rptest.services.kerberos import KrbKdc, KrbClient
@@ -52,8 +54,7 @@ class RedpandaKerberosTestBase(Test):
             security=security,
             **kwargs)
 
-        self.client = KrbClient(test_context, self.kdc, self.redpanda,
-                                f"client@{REALM}")
+        self.client = KrbClient(test_context, self.kdc, self.redpanda)
 
     def _service_principal(self, primary: str, node):
         ip = socket.gethostbyname(node.account.hostname)
@@ -106,20 +107,63 @@ class RedpandaKerberosTest(RedpandaKerberosTestBase):
         super(RedpandaKerberosTest, self).__init__(test_context, **kwargs)
 
     @cluster(num_nodes=5)
-    def test_init(self):
+    @parametrize(req_principal="client",
+                 acl=True,
+                 topics=["needs_acl", "always_visible"],
+                 fail=False)
+    @parametrize(req_principal="client",
+                 acl=False,
+                 topics=["always_visible"],
+                 fail=False)
+    @parametrize(req_principal="invalid", acl=False, topics={}, fail=True)
+    def test_init(self, req_principal: str, acl: bool, topics: set[str],
+                  fail: bool):
+        def is_auth_error(msg):
+            return b'No Kerberos credentials available' in msg
+
         feature_name = "kafka_gssapi"
         self.redpanda.logger.info(f"Principals: {self.kdc.list_principals()}")
         admin = Admin(self.redpanda)
         admin.put_feature(feature_name, {"state": "active"})
         self.redpanda.await_feature_active(feature_name, timeout_sec=30)
 
-        kcat = KafkaCat(self.redpanda)
-        metadata = kcat.metadata()
-        self.redpanda.logger.info(f"Metadata (SCRAM): {metadata}")
-        assert len(metadata['brokers']) == 3
-        metadata = self.client.metadata()
-        self.redpanda.logger.info(f"Metadata (GSSAPI): {metadata}")
-        assert len(metadata['brokers']) == 3
+        username, password, mechanism = self.redpanda.SUPERUSER_CREDENTIALS
+        super_rpk = RpkTool(self.redpanda,
+                            username=username,
+                            password=password,
+                            sasl_mechanism=mechanism)
+
+        # Create a topic that's visible to "client" iff acl = True
+        client_principal = self._client_principal("client")
+        client_user_principal = f"User:{client_principal}"
+        super_rpk.sasl_create_user(client_user_principal, "rp123", mechanism)
+
+        super_rpk.create_topic("needs_acl")
+        if acl:
+            super_rpk.sasl_allow_principal(client_user_principal,
+                                           ["write", "read", "describe"],
+                                           "topic", "needs_acl", username,
+                                           password, mechanism)
+
+        # Create a topic visible to anybody
+        super_rpk.create_topic("always_visible")
+        super_rpk.sasl_allow_principal("*", ["write", "read", "describe"],
+                                       "topic", "always_visible", username,
+                                       password, mechanism)
+
+        expected_acls = 3 * (2 if acl else 1)
+        wait_until(lambda: super_rpk.acl_list().count('\n') >= expected_acls,
+                   5)
+
+        try:
+            metadata = self.client.metadata(req_principal)
+            self.redpanda.logger.info(f"Metadata (GSSAPI): {metadata}")
+            assert len(metadata['brokers']) == 3
+            assert {n['topic'] for n in metadata['topics']} == set(topics)
+            assert not fail
+        except RemoteCommandError as err:
+            assert is_auth_error(err.msg)
+            assert fail
 
 
 class RedpandaKerberosLicenseTest(RedpandaKerberosTestBase):
