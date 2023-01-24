@@ -613,6 +613,7 @@ class RedpandaService(Service):
     # When configuring multiple listeners for testing, a secondary port to use
     # instead of the default.
     KAFKA_ALTERNATE_PORT = 9093
+    KAFKA_KERBEROS_PORT = 9094
     ADMIN_ALTERNATE_PORT = 9647
 
     CLUSTER_CONFIG_DEFAULTS = {
@@ -1986,6 +1987,8 @@ class RedpandaService(Service):
         # Grab the IP to use it as an alternative listener address, to
         # exercise code paths that deal with multiple listeners
         node_ip = socket.gethostbyname(node.account.hostname)
+        reported_hostname = node.account.ssh_capture(
+            cmd="hostname").next().strip()
 
         conf = self.render("redpanda.yaml",
                            node=node,
@@ -1996,6 +1999,8 @@ class RedpandaService(Service):
                            seed_servers=self._seed_servers,
                            node_ip=node_ip,
                            kafka_alternate_port=self.KAFKA_ALTERNATE_PORT,
+                           kafka_kerberos_port=self.KAFKA_KERBEROS_PORT,
+                           reported_hostname=reported_hostname,
                            admin_alternate_port=self.ADMIN_ALTERNATE_PORT,
                            pandaproxy_config=self._pandaproxy_config,
                            schema_registry_config=self._schema_registry_config,
@@ -2338,6 +2343,16 @@ class RedpandaService(Service):
         else:
             return None
 
+    def kerberos_broker_address(self, node):
+        assert node in self.nodes, f"where node is {node.name}"
+        assert node in self._started
+        cfg = self._node_configs[node]
+        fqdn = node.account.ssh_capture(cmd="hostname").next().strip()
+        if cfg['redpanda']['kafka_api']:
+            return f"{fqdn}:{self.KAFKA_KERBEROS_PORT}"
+        else:
+            return None
+
     def admin_endpoint(self, node):
         assert node in self.nodes, f"where node is {node.name}"
         return f"{node.account.hostname}:9644"
@@ -2353,8 +2368,19 @@ class RedpandaService(Service):
     def brokers(self, limit=None) -> str:
         return ",".join(self.brokers_list(limit))
 
+    def kerberos_brokers(self, limit=None) -> str:
+        return ",".join(self.kerberos_brokers_list(limit))
+
     def brokers_list(self, limit=None) -> list[str]:
         brokers = [self.broker_address(n) for n in self._started[:limit]]
+        brokers = [b for b in brokers if b is not None]
+        random.shuffle(brokers)
+        return brokers
+
+    def kerberos_brokers_list(self, limit=None) -> list[str]:
+        brokers = [
+            self.kerberos_broker_address(n) for n in self._started[:limit]
+        ]
         brokers = [b for b in brokers if b is not None]
         random.shuffle(brokers)
         return brokers
