@@ -20,7 +20,7 @@ namespace security {
 namespace bdata = boost::unit_test::data;
 
 struct gssapi_test_record {
-    gssapi_test_record(
+    constexpr gssapi_test_record(
       std::string_view gssapi_principal_name,
       std::string_view expected_primary,
       std::string_view expected_host_name,
@@ -49,6 +49,25 @@ struct gssapi_test_record {
         return os;
     }
 };
+
+constexpr auto gssapi_ben_test_data = std::to_array<gssapi_test_record>(
+  {{"jdoe/host", "jdoe", "host", "REALM.com", "jdoe"}});
+
+BOOST_DATA_TEST_CASE(test_gssapi_ben, bdata::make(gssapi_ben_test_data), c) {
+    static const std::vector<ss::sstring> rules = {"RULE:[2:$1]"};
+    static constexpr std::string_view DEFAULT_REALM = "REALM.com";
+    auto mapper = gssapi_principal_mapper(
+      config::mock_binding(std::vector<ss::sstring>{rules}));
+
+    auto name = gssapi_name::parse(c.gssapi_principal_name).value();
+    BOOST_REQUIRE_EQUAL(c.expected_primary, name.primary());
+    BOOST_REQUIRE_EQUAL(c.expected_host_name, name.host_name());
+    BOOST_REQUIRE_EQUAL(c.expected_realm, name.realm());
+    BOOST_REQUIRE_EQUAL(c.gssapi_principal_name, fmt::format("{}", name));
+    auto result_name = mapper.apply(DEFAULT_REALM, name);
+    BOOST_REQUIRE(result_name.has_value());
+    BOOST_REQUIRE_EQUAL(c.expected_name, *result_name);
+}
 
 static std::array<gssapi_test_record, 4> gssapi_name_test_data{
   gssapi_test_record{
