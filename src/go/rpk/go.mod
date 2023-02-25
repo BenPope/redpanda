@@ -38,9 +38,9 @@ require (
 	github.com/twmb/franz-go/pkg/kmsg v1.2.0
 	github.com/twmb/tlscfg v1.2.0
 	github.com/twmb/types v1.1.6
-	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8
-	golang.org/x/term v0.0.0-20220526004731-065cf7ba2467
+	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
+	golang.org/x/sys v0.5.0
+	golang.org/x/term v0.5.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.21.4
 	k8s.io/apimachinery v0.21.4
@@ -90,11 +90,11 @@ require (
 	golang.org/x/exp/typeparams v0.0.0-20220713135740-79cabaa25d75 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
-	golang.org/x/net v0.0.0-20220708220712-1185a9018129 // indirect
+	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220608161450-d0670ef3b1eb // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
-	golang.org/x/tools v0.1.11 // indirect
+	golang.org/x/tools v0.1.12 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
