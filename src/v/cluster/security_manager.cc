@@ -153,8 +153,13 @@ security_manager::fill_snapshot(controller_snapshot& controller_snap) const {
 
     for (const auto& cred : _credentials.local()) {
         ss::visit(cred.second, [&](security::scram_credential scram) {
-            snapshot.user_credentials.push_back(user_and_credential{
-              security::credential_user{cred.first}, std::move(scram)});
+            if (
+              scram.principal().has_value()
+              && scram.principal()->type()
+                   != security::principal_type::ephemeral_user) {
+                snapshot.user_credentials.push_back(user_and_credential{
+                  security::credential_user{cred.first}, std::move(scram)});
+            }
         });
         co_await ss::coroutine::maybe_yield();
     }
