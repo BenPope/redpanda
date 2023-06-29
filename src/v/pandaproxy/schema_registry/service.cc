@@ -48,6 +48,7 @@ namespace pandaproxy::schema_registry {
 using server = ctx_server<service>;
 const security::acl_principal principal{
   security::principal_type::ephemeral_user, "__schema_registry"};
+static constexpr auto initial_create_acls_backoff = 10ms;
 
 class wrap {
 public:
@@ -202,18 +203,40 @@ ss::future<> service::configure() {
       _ctx.smp_sg, [has_ephemeral_credentials](service& s) {
           s._has_ephemeral_credentials = has_ephemeral_credentials;
       });
-    co_await _controller->get_security_frontend().local().create_acls(
-      {security::acl_binding{
-        security::resource_pattern{
-          security::resource_type::topic,
-          model::schema_registry_internal_tp.topic,
-          security::pattern_type::literal},
-        security::acl_entry{
-          principal,
-          security::acl_host::wildcard_host(),
-          security::acl_operation::all,
-          security::acl_permission::allow}}},
-      5s);
+
+    std::vector<cluster::errc> err_vec;
+    // This could be any non-success errc
+    err_vec.push_back(cluster::errc::timeout);
+    auto create_acls_backoff = initial_create_acls_backoff;
+
+    while (err_vec[0] != cluster::errc::success) {
+        err_vec
+          = co_await _controller->get_security_frontend().local().create_acls(
+            {security::acl_binding{
+              security::resource_pattern{
+                security::resource_type::topic,
+                model::schema_registry_internal_tp.topic,
+                security::pattern_type::literal},
+              security::acl_entry{
+                principal,
+                security::acl_host::wildcard_host(),
+                security::acl_operation::all,
+                security::acl_permission::allow}}},
+            5s);
+
+        if (err_vec[0] != cluster::errc::success) {
+            vlog(
+              plog.warn,
+              "Failed creating ACLs, User {}, err {} - {}",
+              principal,
+              err_vec[0],
+              cluster::make_error_code(err_vec[0]).message());
+            co_await ss::sleep(create_acls_backoff);
+            create_acls_backoff *= 2;
+        }
+    }
+
+    vlog(plog.info, "Successfully created ACLs, User {}", principal);
 }
 
 ss::future<> service::mitigate_error(std::exception_ptr eptr) {
