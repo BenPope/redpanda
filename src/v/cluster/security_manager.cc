@@ -151,15 +151,12 @@ ss::future<>
 security_manager::fill_snapshot(controller_snapshot& controller_snap) const {
     auto& snapshot = controller_snap.security;
 
-    for (const auto& cred : _credentials.local()) {
+    auto creds = _credentials.local().range(
+      security::credential_store::is_not_ephemeral);
+    for (const auto& cred : creds) {
         ss::visit(cred.second, [&](security::scram_credential scram) {
-            if (
-              scram.principal().has_value()
-              && scram.principal()->type()
-                   != security::principal_type::ephemeral_user) {
-                snapshot.user_credentials.push_back(user_and_credential{
-                  security::credential_user{cred.first}, std::move(scram)});
-            }
+            snapshot.user_credentials.push_back(user_and_credential{
+              security::credential_user{cred.first}, std::move(scram)});
         });
         co_await ss::coroutine::maybe_yield();
     }
