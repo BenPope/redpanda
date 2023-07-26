@@ -41,11 +41,46 @@
  * [32, 64)  = 2
  * [64, 128) = 0
  */
+class log_hist_base {
+public:
+    log_hist_base(int number_of_buckets, uint64_t first_bucket_upper_bound);
+
+    struct logform_config {
+        int64_t scale;
+        uint64_t first_bucket_bound;
+        int number_of_buckets;
+    };
+
+    seastar::metrics::histogram seastar_histogram_logform(logform_config) const;
+    /*
+     * Generates a Prometheus histogram with 18 buckets. The first bucket has an
+     * upper bound of 256 - 1 and subsequent buckets have an upper bound of 2
+     * times the upper bound of the previous bucket.
+     *
+     * This is the histogram type used in the `/public_metrics` endpoint
+     */
+    seastar::metrics::histogram public_histogram_logform() const;
+    /*
+     * Generates a Prometheus histogram with 26 buckets. The first bucket has an
+     * upper bound of 8 - 1 and subsequent buckets have an upper bound of 2
+     * times the upper bound of the previous bucket.
+     *
+     * This is the histogram type used in the `/metrics` endpoint
+     */
+    seastar::metrics::histogram internal_histogram_logform() const;
+
+protected:
+    int _number_of_buckets;
+    uint64_t _first_bucket_upper_bound;
+    std::vector<uint64_t> _counts;
+    uint64_t _sample_sum{0};
+};
+
 template<
   typename duration_t,
   int number_of_buckets,
   uint64_t first_bucket_upper_bound>
-class log_hist {
+class log_hist : public log_hist_base {
     static_assert(
       first_bucket_upper_bound >= 1
         && (first_bucket_upper_bound & (first_bucket_upper_bound - 1)) == 0,
@@ -111,8 +146,8 @@ public:
     }
 
     log_hist()
-      : _canary(seastar::make_lw_shared(true))
-      , _counts(number_of_buckets) {}
+      : log_hist_base(number_of_buckets, first_bucket_upper_bound)
+      , _canary(seastar::make_lw_shared(true)) {}
     log_hist(const log_hist& o) = delete;
     log_hist& operator=(const log_hist&) = delete;
     log_hist(log_hist&& o) = delete;
@@ -139,37 +174,11 @@ public:
         record(m->compute_duration());
     }
 
-    seastar::metrics::histogram seastar_histogram_logform(int64_t scale) const {
-        seastar::metrics::histogram hist;
-        hist.buckets.resize(_counts.size());
-        hist.sample_sum = static_cast<double>(_sample_sum)
-                          / static_cast<double>(scale);
-
-        uint64_t cumulative_count = 0;
-        for (uint64_t i = 0; i < _counts.size(); i++) {
-            auto& bucket = hist.buckets[i];
-
-            cumulative_count += _counts[i];
-            bucket.count = cumulative_count;
-            uint64_t unscaled_upper_bound = ((uint64_t)1
-                                             << (first_bucket_exp + i))
-                                            - 1;
-            bucket.upper_bound = static_cast<double>(unscaled_upper_bound)
-                                 / static_cast<double>(scale);
-        }
-
-        hist.sample_count = cumulative_count;
-        return hist;
-    }
-
 private:
     friend measurement;
 
     // Used to inform measurements whether `log_hist` has been destroyed
     measurement_canary_t _canary;
-
-    std::vector<uint64_t> _counts;
-    uint64_t _sample_sum{0};
 };
 
 /*
@@ -180,7 +189,6 @@ private:
  * `ssx::metrics::report_default_histogram(hdr_hist)`.
  */
 using log_hist_public = log_hist<std::chrono::microseconds, 18, 256>;
-static constexpr int64_t log_hist_public_scale = 1'000'000;
 
 /*
  * This histogram produces results that are similar, but not indentical to the
