@@ -22,6 +22,13 @@
 #include <optional>
 #include <vector>
 
+template<int64_t _scale, uint64_t _first_bucket_bound, int _bucket_count>
+struct logform_config {
+    static constexpr auto scale = _scale;
+    static constexpr auto first_bucket_bound = _first_bucket_bound;
+    static constexpr auto bucket_count = _bucket_count;
+};
+
 /*
  * A histogram implementation
  * The buckets upper bounds are powers of 2 minus 1.
@@ -42,17 +49,13 @@
  * [32, 64)  = 2
  * [64, 128) = 0
  */
+template<int number_of_buckets, uint64_t first_bucket_upper_bound>
 class log_hist_base {
 public:
-    log_hist_base(int number_of_buckets, uint64_t first_bucket_upper_bound);
+    log_hist_base();
 
-    struct logform_config {
-        int64_t scale;
-        uint64_t first_bucket_bound;
-        int number_of_buckets;
-    };
-
-    seastar::metrics::histogram seastar_histogram_logform(logform_config) const;
+    template<typename cfg>
+    seastar::metrics::histogram seastar_histogram_logform() const;
     /*
      * Generates a Prometheus histogram with 18 buckets. The first bucket has an
      * upper bound of 256 - 1 and subsequent buckets have an upper bound of 2
@@ -71,9 +74,7 @@ public:
     seastar::metrics::histogram internal_histogram_logform() const;
 
 protected:
-    int _number_of_buckets;
-    uint64_t _first_bucket_upper_bound;
-    std::vector<uint64_t> _counts;
+    std::array<uint64_t, number_of_buckets> _counts;
     uint64_t _sample_sum{0};
 };
 
@@ -81,12 +82,14 @@ template<
   typename duration_t,
   int number_of_buckets,
   uint64_t first_bucket_upper_bound>
-class log_hist : public log_hist_base {
+class log_hist
+  : public log_hist_base<number_of_buckets, first_bucket_upper_bound> {
     static_assert(
       first_bucket_upper_bound >= 1
         && (first_bucket_upper_bound & (first_bucket_upper_bound - 1)) == 0,
       "first bucket bound must be power of 2");
 
+    using base = log_hist_base<number_of_buckets, first_bucket_upper_bound>;
     using measurement_canary_t = seastar::lw_shared_ptr<bool>;
 
 public:
@@ -168,7 +171,7 @@ public:
     }
 
     log_hist()
-      : log_hist_base(number_of_buckets, first_bucket_upper_bound)
+      : base()
       , _canary(seastar::make_lw_shared(true)) {}
     log_hist(const log_hist& o) = delete;
     log_hist& operator=(const log_hist&) = delete;
@@ -184,12 +187,12 @@ public:
      * so make sure the input is scaled correctly.
      */
     void record(uint64_t val) {
-        _sample_sum += val;
+        base::_sample_sum += val;
         const unsigned i = std::clamp(
           first_bucket_clz - std::countl_zero(val),
           0,
-          static_cast<int>(_counts.size() - 1));
-        _counts[i]++;
+          static_cast<int>(base::_counts.size() - 1));
+        base::_counts[i]++;
     }
 
     void record(std::unique_ptr<measurement> m) {

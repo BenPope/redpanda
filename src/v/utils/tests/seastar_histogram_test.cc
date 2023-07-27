@@ -35,25 +35,26 @@ bool approximately_equal(double a, double b) {
     return std::abs(a - b) <= precision_error;
 }
 
-struct hist_config {
-    log_hist_base::logform_config config;
+template<typename cfg>
+struct hist_config : cfg {
+    using config = cfg;
     bool use_approximately_equal;
 };
 
-constexpr log_hist_base::logform_config public_hist_config = {
-  .scale = 1'000'000, .first_bucket_bound = 256, .number_of_buckets = 18};
-constexpr log_hist_base::logform_config public_hist_unscaled_config = {
-  .scale = 1, .first_bucket_bound = 256, .number_of_buckets = 18};
-constexpr std::array hist_configs = {
-  hist_config{public_hist_config, true},
-  hist_config{public_hist_unscaled_config, false}};
+using public_hist_config = logform_config<1'000'000, 256, 18>;
+using public_hist_unscaled_config = logform_config<1, 256, 18>;
+
+constexpr auto hist_configs = std::make_tuple(
+  hist_config<public_hist_config>{.use_approximately_equal = true},
+  hist_config<public_hist_unscaled_config>{.use_approximately_equal = false});
 
 template<typename l_hist>
 void validate_public_histograms_equal(const hdr_hist& a, const l_hist& b) {
-    for (auto cfg : hist_configs) {
+    auto validate = [&](auto cfg) {
         const auto logform_a = a.seastar_histogram_logform(
-          18, 250, 2.0, cfg.config.scale);
-        const auto logform_b = b.seastar_histogram_logform(cfg.config);
+          18, 250, 2.0, decltype(cfg)::scale);
+        const auto logform_b = b.template seastar_histogram_logform<
+          typename decltype(cfg)::config>();
 
         BOOST_CHECK_EQUAL(logform_a.sample_count, logform_b.sample_count);
         if (cfg.use_approximately_equal) {
@@ -76,7 +77,8 @@ void validate_public_histograms_equal(const hdr_hist& a, const l_hist& b) {
             BOOST_CHECK_EQUAL(
               logform_a.buckets[idx].count, logform_b.buckets[idx].count);
         }
-    }
+    };
+    std::apply([&](auto&&... cfgs) { (validate(cfgs), ...); }, hist_configs);
 }
 } // namespace
 

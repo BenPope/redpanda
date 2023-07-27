@@ -13,33 +13,34 @@
 
 #include "vassert.h"
 
-log_hist_base::log_hist_base(
-  int number_of_buckets, uint64_t first_bucket_upper_bound)
-  : _number_of_buckets(number_of_buckets)
-  , _first_bucket_upper_bound(first_bucket_upper_bound)
-  , _counts(number_of_buckets) {}
+template<int number_of_buckets, uint64_t first_bucket_upper_bound>
+log_hist_base<number_of_buckets, first_bucket_upper_bound>::log_hist_base()
+  : _counts() {}
 
+template<int number_of_buckets, uint64_t first_bucket_upper_bound>
+template<typename cfg>
 seastar::metrics::histogram
-log_hist_base::seastar_histogram_logform(logform_config cfg) const {
-    const auto bound_is_pow_2 = cfg.first_bucket_bound >= 1
-                                && (cfg.first_bucket_bound
-                                    & (cfg.first_bucket_bound - 1))
+log_hist_base<number_of_buckets, first_bucket_upper_bound>::
+  seastar_histogram_logform() const {
+    const auto bound_is_pow_2 = cfg::first_bucket_bound >= 1
+                                && (cfg::first_bucket_bound
+                                    & (cfg::first_bucket_bound - 1))
                                      == 0;
 
     vassert(bound_is_pow_2, "cfg.first_bucket_bound must be a power of 2");
 
     seastar::metrics::histogram hist;
-    hist.buckets.resize(cfg.number_of_buckets);
+    hist.buckets.resize(cfg::bucket_count);
     hist.sample_sum = static_cast<double>(_sample_sum)
-                      / static_cast<double>(cfg.scale);
+                      / static_cast<double>(cfg::scale);
 
     const unsigned first_bucket_exp
-      = 64 - std::countl_zero(_first_bucket_upper_bound - 1);
+      = 64 - std::countl_zero(first_bucket_upper_bound - 1);
     const unsigned cfg_first_bucket_exp
-      = 64 - std::countl_zero(cfg.first_bucket_bound - 1);
+      = 64 - std::countl_zero(cfg::first_bucket_bound - 1);
 
     // Write bounds to seastar histogram
-    for (int i = 0; i < cfg.number_of_buckets; i++) {
+    for (int i = 0; i < cfg::bucket_count; i++) {
         auto& bucket = hist.buckets[i];
         bucket.count = 0;
 
@@ -47,7 +48,7 @@ log_hist_base::seastar_histogram_logform(logform_config cfg) const {
                                          << (cfg_first_bucket_exp + i))
                                         - 1;
         bucket.upper_bound = static_cast<double>(unscaled_upper_bound)
-                             / static_cast<double>(cfg.scale);
+                             / static_cast<double>(cfg::scale);
     }
 
     uint64_t cumulative_count = 0;
@@ -59,7 +60,7 @@ log_hist_base::seastar_histogram_logform(logform_config cfg) const {
         uint64_t unscaled_upper_bound = ((uint64_t)1 << (first_bucket_exp + i))
                                         - 1;
         double scaled_upper_bound = static_cast<double>(unscaled_upper_bound)
-                                    / static_cast<double>(cfg.scale);
+                                    / static_cast<double>(cfg::scale);
 
         cumulative_count += _counts[i];
 
@@ -77,16 +78,39 @@ log_hist_base::seastar_histogram_logform(logform_config cfg) const {
     return hist;
 }
 
-seastar::metrics::histogram log_hist_base::public_histogram_logform() const {
-    constexpr logform_config public_hist_config = {
-      .scale = 1'000'000, .first_bucket_bound = 256, .number_of_buckets = 18};
+template<int number_of_buckets, uint64_t first_bucket_upper_bound>
+seastar::metrics::histogram
+log_hist_base<number_of_buckets, first_bucket_upper_bound>::
+  public_histogram_logform() const {
+    using public_hist_config = logform_config<1'000'000, 256, 18>;
 
-    return seastar_histogram_logform(public_hist_config);
+    return seastar_histogram_logform<public_hist_config>();
 }
 
-seastar::metrics::histogram log_hist_base::internal_histogram_logform() const {
-    constexpr logform_config internal_hist_config = {
-      .scale = 1, .first_bucket_bound = 8, .number_of_buckets = 26};
+template<int number_of_buckets, uint64_t first_bucket_upper_bound>
+seastar::metrics::histogram
+log_hist_base<number_of_buckets, first_bucket_upper_bound>::
+  internal_histogram_logform() const {
+    using internal_hist_config = logform_config<1, 8, 26>;
 
-    return seastar_histogram_logform(internal_hist_config);
+    return seastar_histogram_logform<internal_hist_config>();
 }
+
+template class log_hist_base<18, 256ul>;
+template class log_hist_base<26, 8ul>;
+
+template seastar::metrics::histogram
+log_hist_base<18, 256ul>::seastar_histogram_logform<
+  logform_config<1000000l, 256ul, 18>>() const;
+
+template seastar::metrics::histogram
+log_hist_base<18, 256ul>::seastar_histogram_logform<
+  logform_config<1, 256ul, 18>>() const;
+
+template seastar::metrics::histogram
+log_hist_base<26, 8ul>::seastar_histogram_logform<
+  logform_config<1000000l, 256ul, 18>>() const;
+
+template seastar::metrics::histogram
+log_hist_base<26, 8ul>::seastar_histogram_logform<
+  logform_config<1l, 256ul, 18>>() const;
