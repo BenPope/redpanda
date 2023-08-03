@@ -303,8 +303,7 @@ do_detect_compaction_index_state(segment_full_path p, compaction_config cfg) {
     using flags = compacted_index::footer_flags;
     return make_reader_handle(p, cfg.sanitizer_config)
       .then([cfg, p](ss::file f) {
-          return make_file_backed_compacted_reader(
-            p, std::move(f), cfg.iopc, 64_KiB);
+          return make_file_backed_compacted_reader(p, std::move(f), 64_KiB);
       })
       .then([](compacted_index_reader reader) {
           return reader.verify_integrity()
@@ -362,7 +361,7 @@ ss::future<> do_compact_segment_index(
     return make_reader_handle(compacted_path, cfg.sanitizer_config)
       .then([cfg, compacted_path, s, &resources](ss::file f) {
           auto reader = make_file_backed_compacted_reader(
-            compacted_path, std::move(f), cfg.iopc, 64_KiB);
+            compacted_path, std::move(f), 64_KiB);
           return write_clean_compacted_index(reader, cfg, resources);
       });
 }
@@ -377,7 +376,7 @@ ss::future<storage::index_state> do_copy_segment_data(
     return make_reader_handle(idx_path, cfg.sanitizer_config)
       .then([s, cfg, idx_path](ss::file f) {
           auto reader = make_file_backed_compacted_reader(
-            idx_path, std::move(f), cfg.iopc, 64_KiB);
+            idx_path, std::move(f), 64_KiB);
           return generate_compacted_list(s->offsets().base_offset, reader)
             .finally([reader]() mutable {
                 return reader.close().then_wrapped([](ss::future<>) {});
@@ -746,22 +745,22 @@ make_concatenated_segment(
 
 ss::future<std::vector<compacted_index_reader>> make_indices_readers(
   std::vector<ss::lw_shared_ptr<segment>>& segments,
-  ss::io_priority_class io_pc,
+  ss::io_priority_class,
   std::optional<ntp_sanitizer_config> ntp_sanitizer_config) {
     return ssx::async_transform(
       segments.begin(),
       segments.end(),
-      [io_pc, san_cfg = ntp_sanitizer_config](ss::lw_shared_ptr<segment>& seg) {
+      [san_cfg = ntp_sanitizer_config](ss::lw_shared_ptr<segment>& seg) {
           const auto path = seg->reader().path().to_compacted_index();
           auto f = ss::now();
           if (seg->has_compaction_index()) {
               f = seg->compaction_index().close();
           }
-          return f.then([io_pc, san_cfg, path]() mutable {
+          return f.then([san_cfg, path]() mutable {
               return make_reader_handle(path, std::move(san_cfg))
-                .then([path, io_pc](auto reader_fd) {
+                .then([path](auto reader_fd) {
                     return make_file_backed_compacted_reader(
-                      path, reader_fd, io_pc, 64_KiB);
+                      path, reader_fd, 64_KiB);
                 });
           });
       });

@@ -25,10 +25,7 @@ using namespace storage; // NOLINT
 class compacted_index_chunk_reader final : public compacted_index_reader::impl {
 public:
     compacted_index_chunk_reader(
-      segment_full_path,
-      ss::file,
-      ss::io_priority_class,
-      size_t max_chunk_memory) noexcept;
+      segment_full_path, ss::file, size_t max_chunk_memory) noexcept;
 
     ss::future<> close() final;
 
@@ -49,7 +46,6 @@ private:
     bool is_footer_loaded() const;
 
     ss::file _handle;
-    ss::io_priority_class _iopc;
     size_t _max_chunk_memory{0};
     size_t _byte_index{0};
     // file size minus footer size
