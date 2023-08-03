@@ -147,16 +147,12 @@ ss::future<ss::file> make_reader_handle(
 
 ss::future<compacted_index_writer> make_compacted_index_writer(
   const std::filesystem::path& path,
-  ss::io_priority_class iopc,
+  ss::io_priority_class,
   storage_resources& resources,
   std::optional<ntp_sanitizer_config> ntp_sanitizer_config) {
     return ss::make_ready_future<compacted_index_writer>(
       make_file_backed_compacted_index(
-        path.string(),
-        iopc,
-        false,
-        resources,
-        std::move(ntp_sanitizer_config)));
+        path.string(), false, resources, std::move(ntp_sanitizer_config)));
 }
 
 ss::future<segment_appender_ptr> make_segment_appender(
@@ -277,11 +273,7 @@ static ss::future<> do_write_clean_compacted_index(
         [reader, cfg, tmpname, &resources](
           roaring::Roaring bitmap) -> ss::future<> {
             auto truncating_writer = make_file_backed_compacted_index(
-              tmpname.string(),
-              cfg.iopc,
-              true,
-              resources,
-              cfg.sanitizer_config);
+              tmpname.string(), true, resources, cfg.sanitizer_config);
 
             return copy_filtered_entries(
               reader, std::move(bitmap), std::move(truncating_writer));
