@@ -109,7 +109,6 @@ ss::future<ss::file> make_handle(
 
 ss::future<compacted_index_writer> make_compacted_index_writer(
   const std::filesystem::path& path,
-  ss::io_priority_class iopc,
   storage_resources& resources,
   std::optional<ntp_sanitizer_config> ntp_sanitizer_config);
 

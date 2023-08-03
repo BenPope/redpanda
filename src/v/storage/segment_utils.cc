@@ -147,7 +147,6 @@ ss::future<ss::file> make_reader_handle(
 
 ss::future<compacted_index_writer> make_compacted_index_writer(
   const std::filesystem::path& path,
-  ss::io_priority_class,
   storage_resources& resources,
   std::optional<ntp_sanitizer_config> ntp_sanitizer_config) {
     return ss::make_ready_future<compacted_index_writer>(
@@ -544,8 +543,7 @@ ss::future<> rebuild_compaction_index(
   segment_full_path p,
   compaction_config cfg,
   storage_resources& resources) {
-    return make_compacted_index_writer(
-             p, cfg.iopc, resources, cfg.sanitizer_config)
+    return make_compacted_index_writer(p, resources, cfg.sanitizer_config)
       .then([r = std::move(rdr), stm_manager, txs = std::move(aborted_txs)](
               compacted_index_writer w) mutable {
           return ss::do_with(
@@ -829,10 +827,7 @@ ss::future<> do_write_concatenated_compacted_index(
                       }
 
                       return make_compacted_index_writer(
-                               target_path,
-                               cfg.iopc,
-                               resources,
-                               cfg.sanitizer_config)
+                               target_path, resources, cfg.sanitizer_config)
                         .then([&readers](compacted_index_writer writer) {
                             return rewrite_concatenated_indicies(
                               std::move(writer), readers);

@@ -748,7 +748,7 @@ ss::future<ss::lw_shared_ptr<segment>> make_segment(
   const ntp_config& ntpc,
   model::offset base_offset,
   model::term_id term,
-  ss::io_priority_class pc,
+  ss::io_priority_class,
   record_version_type version,
   size_t buf_size,
   unsigned read_ahead,
@@ -793,19 +793,18 @@ ss::future<ss::lw_shared_ptr<segment>> make_segment(
                   });
             });
       })
-      .then([path, &ntpc, pc, &resources, ntp_sanitizer_config](
+      .then([path, &ntpc, &resources, ntp_sanitizer_config](
               ss::lw_shared_ptr<segment> seg) mutable {
           if (!ntpc.is_compacted()) {
               return ss::make_ready_future<ss::lw_shared_ptr<segment>>(seg);
           }
           return with_segment(
             seg,
-            [path, pc, &resources, ntp_sanitizer_config](
+            [path, &resources, ntp_sanitizer_config](
               const ss::lw_shared_ptr<segment>& seg) mutable {
                 auto compacted_path = path.to_compacted_index();
                 return internal::make_compacted_index_writer(
                          compacted_path,
-                         pc,
                          resources,
                          std::move(ntp_sanitizer_config))
                   .then([seg, &resources](compacted_index_writer compact) {
