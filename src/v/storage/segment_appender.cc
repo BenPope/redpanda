@@ -493,8 +493,7 @@ void segment_appender::dispatch_background_head_write() {
           return units
             .then([this, h, w, start_offset, expected, src, full](
                     ssx::semaphore_units u) mutable {
-                return _out
-                  .dma_write(start_offset, src, expected, _opts.priority)
+                return _out.dma_write(start_offset, src, expected)
                   .then([this, h, w, expected, full](size_t got) {
                       /*
                        * the continuation that captured full=true is the end of
