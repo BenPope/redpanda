@@ -254,8 +254,7 @@ ss::future<> segment_appender::hydrate_last_half_page() {
         return ss::make_ready_future<>();
     }
     return _out
-      .dma_read(
-        sz, buff, read_align /*must be full _write_ alignment*/, _opts.priority)
+      .dma_read(sz, buff, read_align /*must be full _write_ alignment*/)
       .then([this, bytes_to_read](size_t actual) {
           vassert(
             bytes_to_read <= actual && bytes_to_read == _head->flushed_pos(),
