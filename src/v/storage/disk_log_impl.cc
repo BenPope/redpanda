@@ -39,6 +39,7 @@
 #include <seastar/core/fair_queue.hh>
 #include <seastar/core/future-util.hh>
 #include <seastar/core/future.hh>
+#include <seastar/core/io_priority_class.hh>
 #include <seastar/core/reactor.hh>
 #include <seastar/core/seastar.hh>
 #include <seastar/core/shared_ptr.hh>
@@ -1291,13 +1292,12 @@ ss::future<> disk_log_impl::apply_segment_ms() {
         co_return;
     }
 
-    auto pc = last->appender()
-                .get_priority_class(); // note: has_appender is true, the
-                                       // bouncer condition checked this
     co_await last->release_appender(_readers_cache.get());
     auto offsets = last->offsets();
     co_await new_segment(
-      offsets.committed_offset + model::offset{1}, offsets.term, pc);
+      offsets.committed_offset + model::offset{1},
+      offsets.term,
+      ss::default_priority_class());
 }
 
 ss::future<model::record_batch_reader>

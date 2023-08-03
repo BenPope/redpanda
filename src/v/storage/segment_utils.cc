@@ -163,12 +163,10 @@ ss::future<segment_appender_ptr> make_segment_appender(
   const segment_full_path& path,
   size_t number_of_chunks,
   std::optional<uint64_t> segment_size,
-  ss::io_priority_class iopc,
   storage_resources& resources,
   std::optional<ntp_sanitizer_config> ntp_sanitizer_config) {
     return internal::make_writer_handle(path, std::nullopt)
       .then([number_of_chunks,
-             iopc,
              path,
              segment_size,
              &resources,
@@ -194,7 +192,7 @@ ss::future<segment_appender_ptr> make_segment_appender(
               auto appender_ptr = std::make_unique<segment_appender>(
                 writer,
                 segment_appender::options(
-                  iopc, number_of_chunks, segment_size, resources));
+                  number_of_chunks, segment_size, resources));
 
               if (sanitized_writer) {
                   sanitized_writer->set_pointer_to_appender(appender_ptr.get());
@@ -402,7 +400,6 @@ ss::future<storage::index_state> do_copy_segment_data(
                    segment_appender::write_behind_memory
                      / internal::chunks().chunk_size(),
                    std::nullopt,
-                   cfg.iopc,
                    resources,
                    cfg.sanitizer_config)
             .then([l = std::move(list),

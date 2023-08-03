@@ -766,17 +766,16 @@ ss::future<ss::lw_shared_ptr<segment>> make_segment(
              resources,
              feature_table,
              ntp_sanitizer_config)
-      .then([path, &ntpc, pc, &resources, ntp_sanitizer_config](
+      .then([path, &ntpc, &resources, ntp_sanitizer_config](
               ss::lw_shared_ptr<segment> seg) mutable {
           return with_segment(
             std::move(seg),
-            [path, &ntpc, pc, &resources, ntp_sanitizer_config](
+            [path, &ntpc, &resources, ntp_sanitizer_config](
               const ss::lw_shared_ptr<segment>& seg) mutable {
                 return internal::make_segment_appender(
                          path,
                          internal::number_of_chunks_from_config(ntpc),
                          internal::segment_size_from_config(ntpc),
-                         pc,
                          resources,
                          std::move(ntp_sanitizer_config))
                   .then([seg, &resources](segment_appender_ptr a) {
