@@ -299,7 +299,6 @@ ss::future<ss::lw_shared_ptr<segment>> make_segment(
   const ntp_config& ntpc,
   model::offset base_offset,
   model::term_id term,
-  ss::io_priority_class pc,
   record_version_type version,
   size_t buf_size,
   unsigned read_ahead,

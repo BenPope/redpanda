@@ -421,7 +421,6 @@ ss::future<ss::lw_shared_ptr<segment>> log_manager::make_log_segment(
       ntp,
       base_offset,
       term,
-      pc,
       version,
       read_buf_size,
       read_ahead,
