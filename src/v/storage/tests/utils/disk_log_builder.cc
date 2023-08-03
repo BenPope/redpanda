@@ -192,9 +192,9 @@ segment_index& disk_log_builder::get_seg_index_ptr(size_t index) {
 }
 
 // Create segments
-ss::future<> disk_log_builder::add_segment(
-  model::offset offset, model::term_id term, ss::io_priority_class pc) {
-    return get_disk_log_impl().new_segment(offset, term, pc);
+ss::future<>
+disk_log_builder::add_segment(model::offset offset, model::term_id term) {
+    return get_disk_log_impl().new_segment(offset, term);
 }
 
 // Configuration getters

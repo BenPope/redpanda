@@ -330,10 +330,8 @@ public:
     segment_index& get_seg_index_ptr(size_t index);
 
     // Create segments
-    ss::future<> add_segment(
-      model::offset offset,
-      model::term_id term = model::term_id(0),
-      ss::io_priority_class pc = ss::default_priority_class());
+    ss::future<>
+    add_segment(model::offset offset, model::term_id term = model::term_id(0));
 
     // Read interface
     // Default consume

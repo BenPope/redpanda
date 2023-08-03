@@ -409,7 +409,6 @@ ss::future<ss::lw_shared_ptr<segment>> log_manager::make_log_segment(
   const ntp_config& ntp,
   model::offset base_offset,
   model::term_id term,
-  ss::io_priority_class pc,
   size_t read_buf_size,
   unsigned read_ahead,
   record_version_type version) {

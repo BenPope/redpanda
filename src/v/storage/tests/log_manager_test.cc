@@ -97,7 +97,6 @@ SEASTAR_THREAD_TEST_CASE(test_can_load_logs) {
                   ntps[0],
                   model::offset(10),
                   model::term_id(1),
-                  ss::default_priority_class(),
                   default_segment_readahead_size,
                   default_segment_readahead_count)
                  .get0();
@@ -109,7 +108,6 @@ SEASTAR_THREAD_TEST_CASE(test_can_load_logs) {
                    ntps[2],
                    model::offset(20),
                    model::term_id(1),
-                   ss::default_priority_class(),
                    default_segment_readahead_size,
                    default_segment_readahead_count)
                   .get0();
@@ -120,7 +118,6 @@ SEASTAR_THREAD_TEST_CASE(test_can_load_logs) {
                    ntps[3],
                    model::offset(2),
                    model::term_id(1),
-                   ss::default_priority_class(),
                    default_segment_readahead_size,
                    default_segment_readahead_count)
                   .get0();

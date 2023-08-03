@@ -1083,8 +1083,7 @@ model::timestamp disk_log_impl::start_timestamp() const {
     return (*seg)->index().base_timestamp();
 }
 
-ss::future<> disk_log_impl::new_segment(
-  model::offset o, model::term_id t, ss::io_priority_class pc) {
+ss::future<> disk_log_impl::new_segment(model::offset o, model::term_id t) {
     vassert(
       o() >= 0 && t() >= 0, "offset:{} and term:{} must be initialized", o, t);
     // Recomputing here means that any roll size checks after this takes into
@@ -1095,7 +1094,6 @@ ss::future<> disk_log_impl::new_segment(
         config(),
         o,
         t,
-        pc,
         config::shard_local_cfg().storage_read_buffer_size(),
         config::shard_local_cfg().storage_read_readahead_count())
       .then([this](ss::lw_shared_ptr<segment> handles) mutable {
@@ -1206,21 +1204,19 @@ size_t disk_log_impl::bytes_left_before_roll() const {
     return max - fo;
 }
 
-ss::future<> disk_log_impl::force_roll(ss::io_priority_class iopc) {
+ss::future<> disk_log_impl::force_roll(ss::io_priority_class) {
     auto roll_lock_holder = co_await _segments_rolling_lock.get_units();
     auto t = term();
     auto next_offset = offsets().dirty_offset + model::offset(1);
     if (_segs.empty()) {
-        co_return co_await new_segment(next_offset, t, iopc);
+        co_return co_await new_segment(next_offset, t);
     }
     auto ptr = _segs.back();
     if (!ptr->has_appender()) {
-        co_return co_await new_segment(next_offset, t, iopc);
+        co_return co_await new_segment(next_offset, t);
     }
     co_return co_await ptr->release_appender(_readers_cache.get())
-      .then([this, next_offset, t, iopc] {
-          return new_segment(next_offset, t, iopc);
-      });
+      .then([this, next_offset, t] { return new_segment(next_offset, t); });
 }
 
 ss::future<> disk_log_impl::maybe_roll(
@@ -1235,11 +1231,11 @@ ss::future<> disk_log_impl::maybe_roll(
 
     vassert(t >= term(), "Term:{} must be greater than base:{}", t, term());
     if (_segs.empty()) {
-        co_return co_await new_segment(next_offset, t, iopc);
+        co_return co_await new_segment(next_offset, t);
     }
     auto ptr = _segs.back();
     if (!ptr->has_appender()) {
-        co_return co_await new_segment(next_offset, t, iopc);
+        co_return co_await new_segment(next_offset, t);
     }
     bool size_should_roll = false;
 
@@ -1248,7 +1244,7 @@ ss::future<> disk_log_impl::maybe_roll(
     }
     if (t != term() || size_should_roll) {
         co_await ptr->release_appender(_readers_cache.get());
-        co_await new_segment(next_offset, t, iopc);
+        co_await new_segment(next_offset, t);
     }
 }
 
@@ -1295,9 +1291,7 @@ ss::future<> disk_log_impl::apply_segment_ms() {
     co_await last->release_appender(_readers_cache.get());
     auto offsets = last->offsets();
     co_await new_segment(
-      offsets.committed_offset + model::offset{1},
-      offsets.term,
-      ss::default_priority_class());
+      offsets.committed_offset + model::offset{1}, offsets.term);
 }
 
 ss::future<model::record_batch_reader>

@@ -165,9 +165,7 @@ private:
       std::string_view logging_context_msg);
 
     ss::future<> new_segment(
-      model::offset starting_offset,
-      model::term_id term_for_this_segment,
-      ss::io_priority_class prio);
+      model::offset starting_offset, model::term_id term_for_this_segment);
 
     ss::future<> do_truncate(
       truncate_config,
