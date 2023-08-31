@@ -63,6 +63,7 @@
 #include "model/record.h"
 #include "model/timeout_clock.h"
 #include "net/dns.h"
+#include "net/tls_credentials_probe.h"
 #include "pandaproxy/rest/api.h"
 #include "pandaproxy/schema_registry/api.h"
 #include "pandaproxy/schema_registry/schema_id_validation.h"
@@ -114,6 +115,7 @@
 #include <seastar/http/request.hh>
 #include <seastar/http/url.hh>
 #include <seastar/json/json_elements.hh>
+#include <seastar/net/tls.hh>
 #include <seastar/util/later.hh>
 #include <seastar/util/log.hh>
 #include <seastar/util/short_streams.hh>
@@ -533,13 +535,20 @@ ss::future<> admin_server::configure_listeners() {
         if (tls_it != _cfg.endpoints_tls.end()) {
             auto builder = co_await tls_it->config.get_credentials_builder();
             if (builder) {
+                auto probe = ss::make_lw_shared<net::tls_certificate_probe>();
                 cred = co_await builder->build_reloadable_server_credentials(
-                  [](
+                  [probe](
                     const std::unordered_set<ss::sstring>& updated,
+                    const ss::tls::certificate_credentials& creds,
                     const std::exception_ptr& eptr) {
                       cluster::log_certificate_reload_event(
                         logger, "API TLS", updated, eptr);
+                      probe->loaded(creds, eptr);
                   });
+                std::string_view service = "admin";
+                probe->setup_metrics(service, tls_it->name);
+                probe->setup_public_metrics(service, tls_it->name);
+                probe->loaded(*cred, nullptr);
             }
 
             if (!localhost && !tls_it->config.get_require_client_auth()) {

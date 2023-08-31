@@ -11,14 +11,20 @@
 
 #include "cluster/cluster_utils.h"
 #include "model/metadata.h"
+#include "net/tls_credentials_probe.h"
 #include "pandaproxy/json/types.h"
 #include "pandaproxy/logger.h"
 #include "pandaproxy/probe.h"
 #include "pandaproxy/reply.h"
+#include "ssx/metrics.h"
 
 #include <seastar/core/coroutine.hh>
 #include <seastar/http/function_handlers.hh>
 #include <seastar/http/reply.hh>
+#include <seastar/net/tls.hh>
+
+#include <fmt/chrono.h>
+#include <fmt/ranges.h>
 
 #include <charconv>
 #include <exception>
@@ -205,13 +211,37 @@ ss::future<> server::start(
         if (it != endpoints_tls.end()) {
             auto builder = co_await it->config.get_credentials_builder();
             if (builder) {
+                // The callback that captures this must be copyable due to
+                // std::function
+                auto probe = std::make_shared<net::tls_certificate_probe>();
                 cred = co_await builder->build_reloadable_server_credentials(
-                  [](
+                  [probe](
                     const std::unordered_set<ss::sstring>& updated,
-                    const std::exception_ptr& eptr) {
+                    const ss::tls::certificate_credentials& creds,
+                    const std::exception_ptr& eptr) mutable {
                       cluster::log_certificate_reload_event(
                         plog, "API TLS", updated, eptr);
+                      // if (eptr) {
+                      //     vlog(
+                      //       plog.warn,
+                      //       "Reloading certificate credentials failed: {}",
+                      //       eptr);
+                      // } else {
+                      //     auto exp = ss::tls::get_cert_expiry(creds);
+                      //     auto ser = ss::tls::get_cert_serial(creds);
+                      //     vlog(
+                      //       plog.warn,
+                      //       "Reloading certificate credentials: expiry: {}, "
+                      //       "ser: {}",
+                      //       exp,
+                      //       ser);
+                      // }
+                      probe->loaded(creds, eptr);
                   });
+                probe->setup_metrics(_public_metrics_group_name, it->name);
+                probe->setup_public_metrics(
+                  _public_metrics_group_name, it->name);
+                probe->loaded(*cred, nullptr);
             }
         }
         co_await _server.listen(addr, cred);

@@ -75,6 +75,7 @@
 #include "model/fundamental.h"
 #include "model/metadata.h"
 #include "net/server.h"
+#include "net/tls_credentials_probe.h"
 #include "pandaproxy/rest/api.h"
 #include "pandaproxy/rest/configuration.h"
 #include "pandaproxy/schema_registry/api.h"
@@ -1601,19 +1602,28 @@ void application::wire_up_redpanda_services(
                         .get();
                       auto kafka_builder
                         = it->config.get_credentials_builder().get0();
-                      credentails
-                        = kafka_builder
-                            ? kafka_builder
+                      if (kafka_builder) {
+                          auto probe
+                            = std::make_shared<net::tls_certificate_probe>();
+                          credentails
+                            = kafka_builder
                                 ->build_reloadable_server_credentials(
-                                  [this, name = it->name](
+                                  [this, probe, name = it->name](
                                     const std::unordered_set<ss::sstring>&
                                       updated,
+                                    const ss::tls::certificate_credentials&
+                                      creds,
                                     const std::exception_ptr& eptr) {
                                       cluster::log_certificate_reload_event(
                                         _log, "Kafka RPC TLS", updated, eptr);
+                                      probe->loaded(creds, eptr);
                                   })
-                                .get0()
-                            : nullptr;
+                                .get0();
+                          std::string_view service = "kafka";
+                          probe->setup_metrics(service, it->name);
+                          probe->setup_public_metrics(service, it->name);
+                          probe->loaded(*credentails, nullptr);
+                      }
                   }
 
                   c.addrs.emplace_back(
@@ -1806,19 +1816,26 @@ void application::wire_up_bootstrap_services() {
                                    .rpc_server_tls()
                                    .get_credentials_builder()
                                    .get0();
-              auto credentials
-                = rpc_builder
-                    ? rpc_builder
+              if (rpc_builder) {
+                  auto probe = std::make_shared<net::tls_certificate_probe>();
+                  auto credentials
+                    = rpc_builder
                         ->build_reloadable_server_credentials(
-                          [this](
+                          [this, probe](
                             const std::unordered_set<ss::sstring>& updated,
+                            const ss::tls::certificate_credentials& creds,
                             const std::exception_ptr& eptr) {
                               cluster::log_certificate_reload_event(
                                 _log, "Internal RPC TLS", updated, eptr);
+                              probe->loaded(creds, eptr);
                           })
-                        .get0()
-                    : nullptr;
-              c.addrs.emplace_back(rpc_server_addr, credentials);
+                        .get0();
+                  std::string_view service = "rpc";
+                  probe->setup_metrics(service, "");
+                  probe->setup_public_metrics(service, "");
+                  probe->loaded(*credentials, nullptr);
+                  c.addrs.emplace_back(rpc_server_addr, credentials);
+              }
           });
       })
       .get();
