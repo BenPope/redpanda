@@ -22,6 +22,7 @@
 #include "units.h"
 #include "utils/bottomless_token_bucket.h"
 
+#include <chrono>
 #include <cstdint>
 #include <optional>
 
@@ -1026,7 +1027,8 @@ configuration::configuration()
   , sasl_mechanisms(
       *this,
       "sasl_mechanisms",
-      "A list of supported SASL mechanisms. `SCRAM` and `GSSAPI` are allowed.",
+      "A list of supported SASL mechanisms. `SCRAM`, `GSSAPI`, and "
+      "`OAUTHBEARER` are allowed.",
       {.needs_restart = needs_restart::no, .visibility = visibility::user},
       {"SCRAM"},
       validate_sasl_mechanisms)
@@ -2441,7 +2443,25 @@ configuration::configuration()
       "The sample period for the CPU profiler",
       {.needs_restart = needs_restart::no, .visibility = visibility::user},
       100ms,
-      {.min = 1ms}) {}
+      {.min = 1ms})
+  , oidc_discovery_url(
+      *this,
+      "oidc_discovery_url",
+      "oidc_discovery_url",
+      {.needs_restart = needs_restart::no, .visibility = visibility::user},
+      "https://auth.prd.cloud.redpanda.com/.well-known/openid-configuration")
+  , oidc_token_audience(
+      *this,
+      "oidc_token_audience",
+      "oidc_token_audience",
+      {.needs_restart = needs_restart::no, .visibility = visibility::user},
+      "redpanda")
+  , oidc_clock_skew_tolerance(
+      *this,
+      "oidc_clock_skew_tolerance",
+      "oidc_clock_skew_tolerance",
+      {.needs_restart = needs_restart::no, .visibility = visibility::user},
+      std::chrono::seconds{} * 30) {}
 
 configuration::error_map_t configuration::load(const YAML::Node& root_node) {
     if (!root_node["redpanda"]) {

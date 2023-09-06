@@ -12,7 +12,8 @@ endif()
 find_package(Boost REQUIRED
   COMPONENTS
     iostreams
-    unit_test_framework)
+    unit_test_framework
+    url)
 find_package(absl REQUIRED)
 find_program(GO_PROGRAM go REQUIRED)
 add_subdirectory(v)

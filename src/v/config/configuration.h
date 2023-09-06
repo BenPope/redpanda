@@ -474,6 +474,10 @@ struct configuration final : public config_store {
     property<bool> cpu_profiler_enabled;
     bounded_property<std::chrono::milliseconds> cpu_profiler_sample_period_ms;
 
+    property<ss::sstring> oidc_discovery_url;
+    property<ss::sstring> oidc_token_audience;
+    property<std::chrono::seconds> oidc_clock_skew_tolerance;
+
     configuration();
 
     error_map_t load(const YAML::Node& root_node);

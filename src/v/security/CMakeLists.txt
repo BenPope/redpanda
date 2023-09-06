@@ -14,6 +14,7 @@ v_cc_library(
     scram_algorithm.cc
     scram_authenticator.cc
     gssapi_authenticator.cc
+    oauth_authenticator.cc
     credential.cc
     acl.cc
     mtls.cc
@@ -24,9 +25,11 @@ v_cc_library(
   DEPS
     v::security_config
     v::config
+    v::http
     v::bytes
     v::utils
     v::rprandom
+    Boost::url
     absl::flat_hash_map
     absl::flat_hash_set
     cryptopp
