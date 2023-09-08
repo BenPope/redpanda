@@ -195,6 +195,7 @@ v_cc_library(
     v::raft
     Roaring::roaring
     absl::flat_hash_map
+    v::security
     v::model
     v::cloud_storage
     v::features
