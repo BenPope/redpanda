@@ -47,6 +47,7 @@ class RedpandaKerberosTestBase(Test):
             krb5_conf_path=KRB5_CONF_PATH,
             kdc=None,
             realm=REALM,
+            conn_max_reauth_ms=None,
             **kwargs):
         super(RedpandaKerberosTestBase, self).__init__(test_context, **kwargs)
 
@@ -60,15 +61,17 @@ class RedpandaKerberosTestBase(Test):
         security.enable_sasl = True
         security.sasl_mechanisms = sasl_mechanisms
 
-        self.redpanda = RedpandaKerberosNode(test_context,
-                                             kdc=self.kdc,
-                                             realm=realm,
-                                             keytab_file=keytab_file,
-                                             krb5_conf_path=krb5_conf_path,
-                                             num_brokers=num_brokers,
-                                             log_config=LOG_CONFIG,
-                                             security=security,
-                                             **kwargs)
+        self.redpanda = RedpandaKerberosNode(
+            test_context,
+            kdc=self.kdc,
+            realm=realm,
+            keytab_file=keytab_file,
+            krb5_conf_path=krb5_conf_path,
+            num_brokers=num_brokers,
+            log_config=LOG_CONFIG,
+            security=security,
+            extra_rp_conf={'kafka_sasl_max_reauth_ms': conn_max_reauth_ms},
+            **kwargs)
 
         self.client = KrbClient(test_context, self.kdc, self.redpanda)
 
