@@ -20,6 +20,7 @@
 #include <seastar/core/coroutine.hh>
 #include <seastar/http/function_handlers.hh>
 #include <seastar/http/reply.hh>
+#include <seastar/net/socket_defs.hh>
 
 #include <charconv>
 #include <exception>
@@ -179,8 +180,20 @@ ss::future<> server::start(
     _server._routes.register_exeption_handler(
       exception_replier{ss::sstring{name(_exceptional_mime_type)}});
     _ctx.advertised_listeners.reserve(endpoints.size());
+    std::vector<ss::socket_address> check_for_duplicate_listeners;
     for (auto& server_endpoint : endpoints) {
         auto addr = co_await net::resolve_dns(server_endpoint.address);
+        auto exists = absl::c_find(check_for_duplicate_listeners, addr)
+                      != check_for_duplicate_listeners.end();
+        if (exists) {
+            vlog(
+              plog.error,
+              "Ignoring second attempt to listen on same address: {}",
+              server_endpoint);
+            continue;
+        } else {
+            check_for_duplicate_listeners.push_back(addr);
+        }
         auto it = find_if(
           endpoints_tls.begin(),
           endpoints_tls.end(),
