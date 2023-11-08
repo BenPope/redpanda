@@ -1,0 +1,99 @@
+    "cluster_config_status": {
+      "description": "Per-broker configuration status",
+      "properties": {
+        "config_version": {
+          "description": "Configuration version number, for cross referencing with PUT results",
+          "format": "int64",
+          "type": "integer"
+        },
+        "invalid": {
+          "description": "List of properties with invalid values",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "node_id": {
+          "description": "node id",
+          "format": "int64",
+          "type": "integer"
+        },
+        "restart": {
+          "description": "Restart required to apply pending configuration",
+          "type": "boolean"
+        },
+        "unknown": {
+          "description": "List of properties unknown to this broker",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "cluster_config_property_metadata": {
+      "description": "A single configuration property's metadata",
+      "properties": {
+        "aliases": {
+          "description": "List of legacy names for the property. Property may be set using these names, but will always appear in GET requests via its primary name.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "description": {
+          "description": "Human readable description of property's purpose",
+          "type": "string"
+        },
+        "enum_values": {
+          "description": "Possible values of the property (in string-ized form)",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "example": {
+          "description": "Example of correct syntax for this property",
+          "type": "string"
+        },
+        "is_secret": {
+          "description": "Whether this property is a secret (i.e. should not be logged)",
+          "type": "boolean"
+        },
+        "items": {
+          "type": "cluster_config_property_metadata_items"
+        },
+        "needs_restart": {
+          "description": "Whether changes to this property will require a restart of Redpanda brokers",
+          "type": "boolean"
+        },
+        "nullable": {
+          "description": "Whether this setting may be set to null",
+          "type": "boolean"
+        },
+        "type": {
+          "description": "Expected syntax of the property value",
+          "type": "string"
+        },
+        "units": {
+          "description": "If applicable, the units of the property (e.g. ms, bytes)",
+          "type": "string"
+        },
+        "visibility": {
+          "description": "One of user|tunable|deprecated",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "cluster_config_property_metadata_items": {
+      "description": "The type within 'items' for array properties",
+      "properties": {
+        "type": {
+          "description": "A scalar type name, like 'string'",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
