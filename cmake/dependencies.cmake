@@ -78,6 +78,10 @@ fetch_dep(ada
   REPO https://github.com/ada-url/ada
   TAG v2.7.3)
 
+fetch_dep(pfr
+  REPO https://github.com/boostorg/pfr.git
+  TAG boost-1.83.0
+
 if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64")
   set(TINYGO_TARBALL "tinygo-linux-amd64.tar.gz")
   set(TINYGO_MD5 "5b4ba9d8dd8ce10f7939de441ad46a80")
@@ -129,7 +133,8 @@ FetchContent_MakeAvailable(
     wasmtime
     hdrhistogram
     ada
-    absl)
+    absl
+    pfr)
 
 add_library(Crc32c::crc32c ALIAS crc32c)
 add_library(aklomp::base64 ALIAS base64)
