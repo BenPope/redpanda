@@ -51,7 +51,11 @@ const security::acl_principal principal{
 
 class wrap {
 public:
-    wrap(ss::gate& g, one_shot& os, server::function_handler h)
+    wrap(
+      ss::gate& g,
+      one_shot& os,
+      server::function_handler h,
+      ss::sharded<security::audit::audit_log_manager>&)
       : _g{g}
       , _os{os}
       , _h{std::move(h)} {}
@@ -86,96 +90,102 @@ private:
     server::function_handler _h;
 };
 
-server::routes_t get_schema_registry_routes(ss::gate& gate, one_shot& es) {
+server::routes_t get_schema_registry_routes(
+  ss::gate& gate,
+  one_shot& es,
+  ss::sharded<security::audit::audit_log_manager>& audit_mgr) {
     server::routes_t routes;
     routes.api = ss::httpd::schema_registry_json::name;
 
     routes.routes.emplace_back(server::route_t{
-      ss::httpd::schema_registry_json::get_config, wrap(gate, es, get_config)});
+      ss::httpd::schema_registry_json::get_config,
+      wrap(gate, es, get_config, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
-      ss::httpd::schema_registry_json::put_config, wrap(gate, es, put_config)});
+      ss::httpd::schema_registry_json::put_config,
+      wrap(gate, es, put_config, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_config_subject,
-      wrap(gate, es, get_config_subject)});
+      wrap(gate, es, get_config_subject, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::put_config_subject,
-      wrap(gate, es, put_config_subject)});
+      wrap(gate, es, put_config_subject, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::delete_config_subject,
-      wrap(gate, es, delete_config_subject)});
+      wrap(gate, es, delete_config_subject, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
-      ss::httpd::schema_registry_json::get_mode, wrap(gate, es, get_mode)});
+      ss::httpd::schema_registry_json::get_mode,
+      wrap(gate, es, get_mode, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_schemas_types,
-      wrap(gate, es, get_schemas_types)});
+      wrap(gate, es, get_schemas_types, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_schemas_ids_id,
-      wrap(gate, es, get_schemas_ids_id)});
+      wrap(gate, es, get_schemas_ids_id, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_schemas_ids_id_versions,
-      wrap(gate, es, get_schemas_ids_id_versions)});
+      wrap(gate, es, get_schemas_ids_id_versions, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_schemas_ids_id_subjects,
-      wrap(gate, es, get_schemas_ids_id_subjects)});
+      wrap(gate, es, get_schemas_ids_id_subjects, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_subjects,
-      wrap(gate, es, get_subjects)});
+      wrap(gate, es, get_subjects, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_subject_versions,
-      wrap(gate, es, get_subject_versions)});
+      wrap(gate, es, get_subject_versions, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::post_subject,
-      wrap(gate, es, post_subject)});
+      wrap(gate, es, post_subject, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::post_subject_versions,
-      wrap(gate, es, post_subject_versions)});
+      wrap(gate, es, post_subject_versions, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_subject_versions_version,
-      wrap(gate, es, get_subject_versions_version)});
+      wrap(gate, es, get_subject_versions_version, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_subject_versions_version_schema,
-      wrap(gate, es, get_subject_versions_version_schema)});
+      wrap(gate, es, get_subject_versions_version_schema, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::
         get_subject_versions_version_referenced_by,
-      wrap(gate, es, get_subject_versions_version_referenced_by)});
+      wrap(gate, es, get_subject_versions_version_referenced_by, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::
         get_subject_versions_version_referenced_by_deprecated,
-      wrap(gate, es, get_subject_versions_version_referenced_by)});
+      wrap(gate, es, get_subject_versions_version_referenced_by, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::delete_subject,
-      wrap(gate, es, delete_subject)});
+      wrap(gate, es, delete_subject, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::delete_subject_version,
-      wrap(gate, es, delete_subject_version)});
+      wrap(gate, es, delete_subject_version, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::compatibility_subject_version,
-      wrap(gate, es, compatibility_subject_version)});
+      wrap(gate, es, compatibility_subject_version, audit_mgr)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::schema_registry_status_ready,
-      wrap(gate, es, status_ready)});
+      wrap(gate, es, status_ready, audit_mgr)});
 
     return routes;
 }
@@ -416,7 +426,8 @@ service::service(
 ss::future<> service::start() {
     co_await configure();
     static std::vector<model::broker_endpoint> not_advertised{};
-    _server.routes(get_schema_registry_routes(_gate, _ensure_started));
+    _server.routes(
+      get_schema_registry_routes(_gate, _ensure_started, _audit_mgr));
     co_return co_await _server.start(
       _config.schema_registry_api(),
       _config.schema_registry_api_tls(),
