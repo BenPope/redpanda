@@ -18,6 +18,7 @@
 #include "pandaproxy/server.h"
 #include "pandaproxy/util.h"
 #include "seastarx.h"
+#include "security/fwd.h"
 #include "security/request_auth.h"
 
 #include <seastar/core/future.hh>
@@ -42,7 +43,8 @@ public:
       ss::sharded<kafka::client::client>& client,
       sharded_store& store,
       ss::sharded<seq_writer>& sequencer,
-      std::unique_ptr<cluster::controller>&);
+      std::unique_ptr<cluster::controller>&,
+      ss::sharded<security::audit::audit_log_manager>& audit_mgr);
 
     ss::future<> start();
     ss::future<> stop();
@@ -72,6 +74,7 @@ private:
     sharded_store& _store;
     ss::sharded<seq_writer>& _writer;
     std::unique_ptr<cluster::controller>& _controller;
+    ss::sharded<security::audit::audit_log_manager>& _audit_mgr;
 
     one_shot _ensure_started;
     request_authenticator _auth;
