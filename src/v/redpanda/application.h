@@ -42,7 +42,6 @@
 #include "pandaproxy/schema_registry/configuration.h"
 #include "pandaproxy/schema_registry/fwd.h"
 #include "raft/fwd.h"
-#include "redpanda/admin/server.h"
 #include "redpanda/monitor_unsafe_log_flag.h"
 #include "resource_mgmt/cpu_profiler.h"
 #include "resource_mgmt/cpu_scheduling.h"
@@ -66,6 +65,8 @@
 #include <seastar/util/defer.hh>
 
 namespace po = boost::program_options; // NOLINT
+
+class admin_server;
 
 namespace cluster {
 class cluster_discovery;
