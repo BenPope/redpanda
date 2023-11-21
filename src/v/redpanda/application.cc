@@ -987,7 +987,8 @@ void application::configure_admin_server() {
       std::ref(shadow_index_cache),
       std::ref(_cpu_profiler),
       &_transform_service,
-      std::ref(audit_mgr))
+      std::ref(audit_mgr),
+      std::ref(_kafka_server))
       .get();
 }
 

@@ -56,6 +56,7 @@
 #include "json/stringbuffer.h"
 #include "json/validator.h"
 #include "json/writer.h"
+#include "kafka/server/server.h"
 #include "kafka/server/usage_manager.h"
 #include "kafka/types.h"
 #include "metrics/metrics.h"
@@ -310,7 +311,8 @@ admin_server::admin_server(
   ss::sharded<cloud_storage::cache>& cloud_storage_cache,
   ss::sharded<resources::cpu_profiler>& cpu_profiler,
   ss::sharded<transform::service>* transform_service,
-  ss::sharded<security::audit::audit_log_manager>& audit_mgr)
+  ss::sharded<security::audit::audit_log_manager>& audit_mgr,
+  ss::sharded<kafka::server>& kafka_server)
   : _log_level_timer([this] { log_level_timer_handler(); })
   , _server("admin")
   , _cfg(std::move(cfg))
@@ -338,6 +340,7 @@ admin_server::admin_server(
   , _cpu_profiler(cpu_profiler)
   , _transform_service(transform_service)
   , _audit_mgr(audit_mgr)
+  , _kafka_server(kafka_server)
   , _default_blocked_reactor_notify(
       ss::engine().get_blocked_reactor_notify_ms()) {
     _server.set_content_streaming(true);
@@ -2186,6 +2189,22 @@ admin_server::oidc_keys_cache_invalidate_handler(
     co_return ss::json::json_return_type(ss::json::json_void());
 }
 
+ss::future<ss::json::json_return_type>
+admin_server::oidc_revoke_handler(std::unique_ptr<ss::http::request> req) {
+    auto f = co_await ss::coroutine::as_future(
+      _controller->get_oidc_service().invoke_on_all(
+        [](auto& s) { return s.refresh_keys(); }));
+    if (f.failed()) {
+        ss::httpd::security_json::oidc_keys_cache_invalidate_error_response res;
+        res.error_message = ssx::sformat("", f.get_exception());
+        co_return ss::json::json_return_type(res);
+    }
+    co_await _kafka_server.invoke_on_all([](kafka::server& ks) {
+        return ks.revoke_credentials(security::oidc::sasl_authenticator::name);
+    });
+    co_return ss::json::json_return_type(ss::json::json_void());
+}
+
 void admin_server::register_security_routes() {
     register_route<superuser>(
       ss::httpd::security_json::create_user,
@@ -2215,6 +2234,12 @@ void admin_server::register_security_routes() {
       ss::httpd::security_json::oidc_keys_cache_invalidate,
       [this](std::unique_ptr<ss::http::request> req) {
           return oidc_keys_cache_invalidate_handler(std::move(req));
+      });
+
+    register_route<superuser>(
+      ss::httpd::security_json::oidc_revoke,
+      [this](std::unique_ptr<ss::http::request> req) {
+          return oidc_revoke_handler(std::move(req));
       });
 
     register_route<superuser>(
