@@ -237,6 +237,8 @@ private:
     std::optional<audit_event_passthrough> should_enqueue_audit_event() const;
     std::optional<audit_event_passthrough> should_enqueue_audit_event(
       kafka::api_key, const security::acl_principal&) const;
+    std::optional<audit_event_passthrough> should_enqueue_audit_event(
+      event_type, const security::acl_principal&) const;
     std::optional<audit_event_passthrough>
     should_enqueue_audit_event(event_type, const security::audit::user&) const;
     std::optional<audit_event_passthrough>
