@@ -57,15 +57,10 @@ const security::acl_principal principal{
 
 class wrap {
 public:
-    wrap(
-      ss::gate& g,
-      one_shot& os,
-      server::function_handler h,
-      ss::sharded<security::audit::audit_log_manager>& audit_mgr)
+    wrap(ss::gate& g, one_shot& os, server::function_handler h)
       : _g{g}
       , _os{os}
-      , _h{std::move(h)}
-      , _audit_mgr(audit_mgr) {}
+      , _h{std::move(h)} {}
 
     ss::future<server::reply_t>
     operator()(server::request_t rq, server::reply_t rp) const {
@@ -161,7 +156,7 @@ private:
       security::audit::authentication_event_options options) const {
         vlog(
           plog.trace, "Attempting to audit authn for {}", rq.req->format_url());
-        auto success = _audit_mgr.local().enqueue_authn_event(
+        auto success = rq.context().service.audit_mgr().enqueue_authn_event(
           std::move(options));
         if (!success) {
             vlog(
@@ -177,7 +172,7 @@ private:
     void do_audit_authz(const server::request_t& rq) const {
         vlog(
           plog.trace, "Attempting to audit authz for {}", rq.req->format_url());
-        auto success = _audit_mgr.local().enqueue_api_activity_event(
+        auto success = rq.service().audit_mgr().enqueue_api_activity_event(
           *rq.req, rq.user.name, audit_svc_name);
 
         if (!success) {
@@ -195,105 +190,98 @@ private:
     ss::gate& _g;
     one_shot& _os;
     server::function_handler _h;
-    ss::sharded<security::audit::audit_log_manager>& _audit_mgr;
 };
 
-server::routes_t get_schema_registry_routes(
-  ss::gate& gate,
-  one_shot& es,
-  ss::sharded<security::audit::audit_log_manager>& audit_mgr) {
+server::routes_t get_schema_registry_routes(ss::gate& gate, one_shot& es) {
     server::routes_t routes;
     routes.api = ss::httpd::schema_registry_json::name;
 
     routes.routes.emplace_back(server::route_t{
-      ss::httpd::schema_registry_json::get_config,
-      wrap(gate, es, get_config, audit_mgr)});
+      ss::httpd::schema_registry_json::get_config, wrap(gate, es, get_config)});
 
     routes.routes.emplace_back(server::route_t{
-      ss::httpd::schema_registry_json::put_config,
-      wrap(gate, es, put_config, audit_mgr)});
+      ss::httpd::schema_registry_json::put_config, wrap(gate, es, put_config)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_config_subject,
-      wrap(gate, es, get_config_subject, audit_mgr)});
+      wrap(gate, es, get_config_subject)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::put_config_subject,
-      wrap(gate, es, put_config_subject, audit_mgr)});
+      wrap(gate, es, put_config_subject)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::delete_config_subject,
-      wrap(gate, es, delete_config_subject, audit_mgr)});
+      wrap(gate, es, delete_config_subject)});
 
     routes.routes.emplace_back(server::route_t{
-      ss::httpd::schema_registry_json::get_mode,
-      wrap(gate, es, get_mode, audit_mgr)});
+      ss::httpd::schema_registry_json::get_mode, wrap(gate, es, get_mode)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_schemas_types,
-      wrap(gate, es, get_schemas_types, audit_mgr)});
+      wrap(gate, es, get_schemas_types)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_schemas_ids_id,
-      wrap(gate, es, get_schemas_ids_id, audit_mgr)});
+      wrap(gate, es, get_schemas_ids_id)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_schemas_ids_id_versions,
-      wrap(gate, es, get_schemas_ids_id_versions, audit_mgr)});
+      wrap(gate, es, get_schemas_ids_id_versions)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_schemas_ids_id_subjects,
-      wrap(gate, es, get_schemas_ids_id_subjects, audit_mgr)});
+      wrap(gate, es, get_schemas_ids_id_subjects)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_subjects,
-      wrap(gate, es, get_subjects, audit_mgr)});
+      wrap(gate, es, get_subjects)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_subject_versions,
-      wrap(gate, es, get_subject_versions, audit_mgr)});
+      wrap(gate, es, get_subject_versions)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::post_subject,
-      wrap(gate, es, post_subject, audit_mgr)});
+      wrap(gate, es, post_subject)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::post_subject_versions,
-      wrap(gate, es, post_subject_versions, audit_mgr)});
+      wrap(gate, es, post_subject_versions)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_subject_versions_version,
-      wrap(gate, es, get_subject_versions_version, audit_mgr)});
+      wrap(gate, es, get_subject_versions_version)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::get_subject_versions_version_schema,
-      wrap(gate, es, get_subject_versions_version_schema, audit_mgr)});
+      wrap(gate, es, get_subject_versions_version_schema)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::
         get_subject_versions_version_referenced_by,
-      wrap(gate, es, get_subject_versions_version_referenced_by, audit_mgr)});
+      wrap(gate, es, get_subject_versions_version_referenced_by)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::
         get_subject_versions_version_referenced_by_deprecated,
-      wrap(gate, es, get_subject_versions_version_referenced_by, audit_mgr)});
+      wrap(gate, es, get_subject_versions_version_referenced_by)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::delete_subject,
-      wrap(gate, es, delete_subject, audit_mgr)});
+      wrap(gate, es, delete_subject)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::delete_subject_version,
-      wrap(gate, es, delete_subject_version, audit_mgr)});
+      wrap(gate, es, delete_subject_version)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::compatibility_subject_version,
-      wrap(gate, es, compatibility_subject_version, audit_mgr)});
+      wrap(gate, es, compatibility_subject_version)});
 
     routes.routes.emplace_back(server::route_t{
       ss::httpd::schema_registry_json::schema_registry_status_ready,
-      wrap(gate, es, status_ready, audit_mgr)});
+      wrap(gate, es, status_ready)});
 
     return routes;
 }
@@ -534,8 +522,7 @@ service::service(
 ss::future<> service::start() {
     co_await configure();
     static std::vector<model::broker_endpoint> not_advertised{};
-    _server.routes(
-      get_schema_registry_routes(_gate, _ensure_started, _audit_mgr));
+    _server.routes(get_schema_registry_routes(_gate, _ensure_started));
     co_return co_await _server.start(
       _config.schema_registry_api(),
       _config.schema_registry_api_tls(),
