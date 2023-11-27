@@ -19,6 +19,7 @@
 #include <seastar/util/log.hh>
 
 #include <limits>
+#include <type_traits>
 
 namespace config {
 inline ss::logger constraints_log{"constraints"};
@@ -241,22 +242,109 @@ bool validate_value(
     return validate_value(
       tri, constraint, topic, topic_property, cluster_property, cluster_opt);
 }
+template<typename T>
+bool validate_value(
+  const T& topic_val,
+  const constraint_t& constraint,
+  const model::topic& topic,
+  const std::string_view& topic_property,
+  const std::string_view& cluster_property,
+  const std::optional<T> cluster_opt = std::nullopt) {
+    auto opt = std::optional<T>{topic_val};
+
+    return validate_value(
+      opt, constraint, topic, topic_property, cluster_property, cluster_opt);
+}
 } // namespace
+
+template<typename T>
+struct topic_property_traits_base {
+    static constexpr bool is_topic_config = requires(T) {
+        T::topic_configuration_ptr;
+    };
+    static constexpr bool is_topic_property = requires(T) {
+        T::topic_properties_ptr;
+    };
+    static constexpr auto& get(config::configuration& config) {
+        return config.*T::cluster_config_ptr;
+    }
+    static constexpr auto& get(config::configuration const& config) {
+        return config.*T::cluster_config_ptr;
+    }
+    static constexpr auto& get(cluster::topic_configuration& config) {
+        if constexpr (is_topic_property) {
+            return config.properties.*T::topic_properties_ptr;
+        } else if constexpr (is_topic_config) {
+            return config.*T::topic_configuration_ptr;
+        } else {
+            vassert(false, "no specialisation for topic property trait");
+        }
+    }
+    static constexpr auto& get(cluster::topic_configuration const& config) {
+        if constexpr (is_topic_property) {
+            return config.properties.*T::topic_properties_ptr;
+        } else if constexpr (is_topic_config) {
+            return config.*T::topic_configuration_ptr;
+        } else {
+            vassert(false, "no specialisation for topic property trait");
+        }
+    }
+};
+
+struct topic_property_partition_count_traits
+  : topic_property_traits_base<topic_property_partition_count_traits> {
+    static constexpr std::string_view property_name
+      = kafka::topic_property_partition_count;
+    static constexpr auto cluster_config_ptr
+      = &config::configuration::default_topic_partitions;
+    static constexpr auto topic_configuration_ptr
+      = &cluster::topic_configuration::partition_count;
+};
+
+struct topic_property_segment_ms_traits
+  : public topic_property_traits_base<topic_property_segment_ms_traits> {
+    static constexpr std::string_view property_name
+      = kafka::topic_property_segment_ms;
+    static constexpr auto cluster_config_ptr
+      = &config::configuration::log_segment_ms;
+    static constexpr auto topic_properties_ptr
+      = &cluster::topic_properties::segment_ms;
+};
+
+struct topic_property_log_compression_type_traits
+  : public topic_property_traits_base<topic_property_segment_ms_traits> {
+    static constexpr std::string_view property_name
+      = kafka::topic_property_compression;
+    static constexpr auto cluster_config_ptr
+      = &config::configuration::log_compression_type;
+    static constexpr auto topic_properties_ptr
+      = &cluster::topic_properties::compression;
+};
+
+template<typename... T>
+bool topic_config_satisfies_constraint(
+  const cluster::topic_configuration& topic_cfg,
+  const constraint_t& constraint) {
+    return (
+      validate_value(
+        T::get(topic_cfg),
+        constraint,
+        topic_cfg.tp_ns.tp,
+        T::property_name,
+        T::get(config::shard_local_cfg()).name())
+      || ...);
+}
 
 bool topic_config_satisfies_constraint(
   const cluster::topic_configuration& topic_cfg,
   const constraint_t& constraint) {
-    auto partition_count_tri = tristate(
-      std::make_optional(topic_cfg.partition_count));
     auto replication_factor_tri = tristate(
       std::make_optional(topic_cfg.replication_factor));
     bool ret
-      = validate_value(
-          partition_count_tri,
-          constraint,
-          topic_cfg.tp_ns.tp,
-          kafka::topic_property_partition_count,
-          config::shard_local_cfg().default_topic_partitions.name())
+      = topic_config_satisfies_constraint<
+          topic_property_partition_count_traits,
+          // topic_property_log_compression_type_traits,
+          topic_property_segment_ms_traits>(topic_cfg, constraint)
         || validate_value(
           replication_factor_tri,
           constraint,
@@ -319,13 +407,7 @@ bool topic_config_satisfies_constraint(
           constraint,
           topic_cfg.tp_ns.tp,
           kafka::topic_property_retention_local_target_ms,
-          config::shard_local_cfg().retention_local_target_ms_default.name())
-        || validate_value(
-          topic_cfg.properties.segment_ms,
-          constraint,
-          topic_cfg.tp_ns.tp,
-          kafka::topic_property_segment_ms,
-          config::shard_local_cfg().log_segment_ms.name());
+          config::shard_local_cfg().retention_local_target_ms_default.name());
 
     if (topic_cfg.properties.shadow_indexing) {
         auto fetch_enabled_opt = std::make_optional(
@@ -472,21 +554,45 @@ void clamp_value(
     // earlier.
     topic_opt = tri.get_optional();
 }
+
+template<typename T>
+void clamp_value(
+  T& topic_val,
+  const constraint_t& constraint,
+  const model::topic& topic,
+  const std::string_view& topic_property,
+  const std::string_view& cluster_property,
+  const std::optional<T> cluster_opt = std::nullopt) {
+    auto opt = std::optional<T>{topic_val};
+    clamp_value(
+      opt, constraint, topic, topic_property, cluster_property, cluster_opt);
+    // The optional is engaged since it was assigned a value earlier.
+    topic_val = opt.value();
+}
 } // namespace
+
+template<typename... T>
+void constraint_clamp_topic_config(
+  cluster::topic_configuration& topic_config, const constraint_t& constraint) {
+    (clamp_value(
+       T::get(topic_config),
+       constraint,
+       topic_config.tp_ns.tp,
+       T::property_name,
+       T::get(config::shard_local_cfg()).name()),
+     // Not sure how to decide when to pass cluster_opt
+     ...);
+}
 
 void constraint_clamp_topic_config(
   cluster::topic_configuration& topic_cfg, const constraint_t& constraint) {
-    auto partition_count_tri = tristate(
-      std::make_optional(topic_cfg.partition_count));
     auto replication_factor_tri = tristate(
       std::make_optional(topic_cfg.replication_factor));
-    clamp_value(
-      partition_count_tri,
-      constraint,
-      topic_cfg.tp_ns.tp,
-      kafka::topic_property_partition_count,
-      config::shard_local_cfg().default_topic_partitions.name());
-    topic_cfg.partition_count = partition_count_tri.value();
+
+    constraint_clamp_topic_config<
+      topic_property_partition_count_traits,
+      // topic_property_log_compression_type_traits,
+      topic_property_segment_ms_traits>(topic_cfg, constraint);
     clamp_value(
       replication_factor_tri,
       constraint,
@@ -551,12 +657,6 @@ void constraint_clamp_topic_config(
       topic_cfg.tp_ns.tp,
       kafka::topic_property_retention_local_target_ms,
       config::shard_local_cfg().retention_local_target_ms_default.name());
-    clamp_value(
-      topic_cfg.properties.segment_ms,
-      constraint,
-      topic_cfg.tp_ns.tp,
-      kafka::topic_property_segment_ms,
-      config::shard_local_cfg().log_segment_ms.name());
 
     if (topic_cfg.properties.shadow_indexing) {
         auto fetch_enabled_opt = std::make_optional(

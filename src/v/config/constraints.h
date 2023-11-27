@@ -48,8 +48,8 @@ struct range_values {
     std::optional<T> min;
     std::optional<T> max;
 
-    range_values() = default;
-    range_values(std::optional<T> min_opt, std::optional<T> max_opt)
+    constexpr range_values() = default;
+    constexpr range_values(std::optional<T> min_opt, std::optional<T> max_opt)
       : min{std::move(min_opt)}
       , max{std::move(max_opt)} {}
 
