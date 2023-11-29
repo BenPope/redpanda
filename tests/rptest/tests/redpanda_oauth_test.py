@@ -20,6 +20,7 @@ from rptest.tests.sasl_reauth_test import get_sasl_metrics, REAUTH_METRIC, EXPIR
 from rptest.util import expect_exception
 
 import requests
+import threading
 import time
 from keycloak import KeycloakOpenID
 from urllib.parse import urlparse
@@ -350,6 +351,88 @@ class RedpandaOIDCTest(RedpandaOIDCTestBase):
         assert request_cache_invalidate(with_auth=True) == requests.codes.ok
 
         assert id_requests < get_idp_request_count()
+
+    @cluster(num_nodes=4)
+    def test_admin_revoke(self):
+        JOIN_MS = 5000
+        WAIT_FOR_JOIN_MS = JOIN_MS * 2
+        FETCH_TIMEOUT_MS = JOIN_MS * 3
+
+        kc_node = self.keycloak.nodes[0]
+        rp_node = self.redpanda.nodes[0]
+
+        def get_sasl_session_revoked_total():
+            metrics = [
+                "kafka_rpc_sasl_session_revoked_total",
+            ]
+            samples = self.redpanda.metrics_samples(metrics, [rp_node],
+                                                    MetricsEndpoint.METRICS)
+            result = {}
+            for k in samples.keys():
+                result[k] = result.get(k, 0) + sum(
+                    [int(s.value) for s in samples[k].samples])
+            return result["kafka_rpc_sasl_session_revoked_total"]
+
+        client_id = CLIENT_ID
+        service_user_id = self.create_service_user(client_id)
+        cfg = self.keycloak.generate_oauth_config(kc_node, client_id)
+        token = self.get_client_credentials_token(cfg)
+
+        revoke_url = f'http://{self.redpanda.admin_endpoint(rp_node)}/v1/security/oidc/revoke'
+        auth_header = {'Authorization': f'Bearer {token["access_token"]}'}
+
+        def request_revoke(with_auth: bool):
+            response = requests.post(
+                url=revoke_url,
+                headers=auth_header if with_auth else None,
+                timeout=5)
+            self.redpanda.logger.info(
+                f'response.status_code: {response.status_code}')
+            return response.status_code
+
+        # At this point, admin API does not require auth and service_user_id is not a superuser
+
+        assert request_revoke(with_auth=False) == requests.codes.ok
+        assert request_revoke(with_auth=True) == requests.codes.ok
+
+        # Require Auth for Admin
+        self.redpanda.set_cluster_config({'admin_api_require_auth': True})
+
+        assert request_revoke(with_auth=False) == requests.codes.forbidden
+        assert request_revoke(with_auth=True) == requests.codes.forbidden
+
+        # Add service_user_id as a superuser
+        self.redpanda.set_cluster_config({
+            'superusers':
+            [self.redpanda.SUPERUSER_CREDENTIALS.username, service_user_id]
+        })
+
+        self.rpk.create_topic(EXAMPLE_TOPIC)
+        expected_topics = set([EXAMPLE_TOPIC])
+        wait_until(lambda: set(self.rpk.list_topics()) == expected_topics,
+                   timeout_sec=5)
+
+        cfg = self.keycloak.generate_oauth_config(kc_node, client_id)
+        cli = KafkaCliTools(self.redpanda, oauth_cfg=cfg)
+
+        def consume():
+            rec = cli.oauth_consume(EXAMPLE_TOPIC,
+                                    num_records=10,
+                                    timeout_ms=FETCH_TIMEOUT_MS)
+            self.redpanda.logger.info(f'consumed: {rec}')
+
+        t1 = threading.Thread(target=consume)
+        t1.start()
+
+        revoked_total = get_sasl_session_revoked_total()
+
+        time.sleep(WAIT_FOR_JOIN_MS / 1000)
+
+        assert request_revoke(with_auth=True) == requests.codes.ok
+
+        t1.join()
+
+        assert revoked_total < get_sasl_session_revoked_total()
 
 
 class OIDCReauthTest(RedpandaOIDCTestBase):
