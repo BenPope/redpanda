@@ -486,10 +486,12 @@ sasl.login.callback.handler.class=io.strimzi.kafka.oauth.client.JaasClientOauthL
         ]
         self._execute(cmd)
 
-    def oauth_consume(self, topic: str, num_records: int, timeout_ms: int):
+    def oauth_consume(self, topic: str, num_records: int, timeout_ms: int,
+                      group_id: str):
         path = "/opt/strimzi-kafka-oauth/examples/consumer"
         cmd = self._oauth_cmd() + [
             f"-Dfetch.max.wait.ms={timeout_ms}",
+            f"-Dgroup.id={group_id}",
             "-cp",
             f"{path}/target/*:{path}/target/lib/*",
             "io.strimzi.examples.consumer.ExampleConsumer",

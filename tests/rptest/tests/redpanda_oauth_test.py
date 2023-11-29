@@ -7,6 +7,7 @@
 # the Business Source License, use of this software will be governed
 # by the Apache License, Version 2.0
 
+import threading
 from ducktape.tests.test import Test
 from ducktape.utils.util import wait_until
 
@@ -20,7 +21,7 @@ from rptest.tests.sasl_reauth_test import get_sasl_metrics, REAUTH_METRIC, EXPIR
 from rptest.util import expect_exception
 
 import requests
-import threading
+import multiprocessing
 import time
 from keycloak import KeycloakOpenID
 from urllib.parse import urlparse
@@ -84,6 +85,7 @@ class RedpandaOIDCTestBase(Test):
                 "oidc_discovery_url": self.keycloak.get_discovery_url(kc_node),
                 "oidc_token_audience": TOKEN_AUDIENCE,
                 "kafka_sasl_max_reauth_ms": sasl_max_reauth_ms,
+                # "group_initial_rebalance_delay": 0,
             },
             security=security,
             pandaproxy_config=pandaproxy_config,
@@ -354,9 +356,9 @@ class RedpandaOIDCTest(RedpandaOIDCTestBase):
 
     @cluster(num_nodes=4)
     def test_admin_revoke(self):
-        JOIN_MS = 5000
-        WAIT_FOR_JOIN_MS = JOIN_MS * 2
-        FETCH_TIMEOUT_MS = JOIN_MS * 3
+        FETCH_TIMEOUT_MS = 60000
+        GROUP_ID = "test_admin_revoke"
+        N_REC = 10
 
         kc_node = self.keycloak.nodes[0]
         rp_node = self.redpanda.nodes[0]
@@ -416,21 +418,35 @@ class RedpandaOIDCTest(RedpandaOIDCTestBase):
         cli = KafkaCliTools(self.redpanda, oauth_cfg=cfg)
 
         def consume():
+            self.redpanda.logger.info('******** starting consumer')
             rec = cli.oauth_consume(EXAMPLE_TOPIC,
-                                    num_records=10,
-                                    timeout_ms=FETCH_TIMEOUT_MS)
-            self.redpanda.logger.info(f'consumed: {rec}')
+                                    num_records=N_REC,
+                                    timeout_ms=FETCH_TIMEOUT_MS,
+                                    group_id=GROUP_ID)
+            self.redpanda.logger.info(f'******** consumed: {rec}')
+
+        def has_group():
+            groups = self.rpk.group_describe(group=GROUP_ID, summary=True)
+            return groups.members == 1 and groups.state == "Stable"
 
         t1 = threading.Thread(target=consume)
+        self.redpanda.logger.info('******** starting consumer thread')
         t1.start()
 
         revoked_total = get_sasl_session_revoked_total()
+        wait_until(has_group, timeout_sec=30, backoff_sec=1)
 
-        time.sleep(WAIT_FOR_JOIN_MS / 1000)
-
+        self.redpanda.logger.info('******** waiting for 10s')
+        time.sleep(10)
+        self.redpanda.logger.info('******** starting final revoke')
         assert request_revoke(with_auth=True) == requests.codes.ok
 
+        self.redpanda.logger.info('******** producing')
+        cli.oauth_produce(EXAMPLE_TOPIC, N_REC)
+
+        self.redpanda.logger.info('******** joining consumer thread')
         t1.join()
+        self.redpanda.logger.info('******** joined consumer thread')
 
         assert revoked_total < get_sasl_session_revoked_total()
 
