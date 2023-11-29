@@ -464,17 +464,20 @@ sasl.login.callback.handler.class=io.strimzi.kafka.oauth.client.JaasClientOauthL
         version = self._version or KafkaCliTools.VERSIONS[0]
         return "/opt/kafka-{}/bin/{}".format(version, script)
 
-    def oauth_produce(self, topic: str, num_records: int, acks=-1):
-        path = "/opt/strimzi-kafka-oauth/examples/producer"
+    def _oauth_cmd(self):
         assert self._oauth_cfg is not None, "Must provide an OAuthConfig at construction"
-        cmd = [
-            "java",
-            "-Dsecurity.protocol=sasl_plaintext",
-            f"-Dacks={acks}",
+        return [
+            "java", "-Dsecurity.protocol=sasl_plaintext",
             f"-Dbootstrap.servers={self._redpanda.brokers()}",
             f"-Doauth.token.endpoint.uri={self._oauth_cfg.token_endpoint}",
             f"-Doauth.client.id={self._oauth_cfg.client_id}",
-            f"-Doauth.client.secret={self._oauth_cfg.client_secret}",
+            f"-Doauth.client.secret={self._oauth_cfg.client_secret}"
+        ]
+
+    def oauth_produce(self, topic: str, num_records: int, acks=-1):
+        path = "/opt/strimzi-kafka-oauth/examples/producer"
+        cmd = self._oauth_cmd() + [
+            f"-Dacks={acks}",
             "-cp",
             f"{path}/target/*:{path}/target/lib/*",
             "io.strimzi.examples.producer.ExampleProducer",
@@ -482,3 +485,15 @@ sasl.login.callback.handler.class=io.strimzi.kafka.oauth.client.JaasClientOauthL
             str(num_records),
         ]
         self._execute(cmd)
+
+    def oauth_consume(self, topic: str, num_records: int, timeout_ms: int):
+        path = "/opt/strimzi-kafka-oauth/examples/consumer"
+        cmd = self._oauth_cmd() + [
+            f"-Dfetch.max.wait.ms={timeout_ms}",
+            "-cp",
+            f"{path}/target/*:{path}/target/lib/*",
+            "io.strimzi.examples.consumer.ExampleConsumer",
+            topic,
+            str(num_records),
+        ]
+        return self._execute(cmd)

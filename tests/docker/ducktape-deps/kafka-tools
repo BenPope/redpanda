@@ -16,6 +16,9 @@ mvn -DskipTests=true clean package
 cd /opt/strimzi-kafka-oauth/examples/producer
 mvn -DskipTests=true clean package
 
+cd /opt/strimzi-kafka-oauth/examples/consumer
+mvn -DskipTests=true clean package
+
 cd /opt/strimzi-kafka-oauth
 cp oauth-common/target/kafka-oauth-common-*.jar /opt/kafka-dev/libs
 cp oauth-client/target/kafka-oauth-client-*.jar /opt/kafka-dev/libs
