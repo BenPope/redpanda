@@ -47,6 +47,7 @@ public:
     std::chrono::seconds clock_skew_tolerance() const;
 
     ss::future<> refresh_keys();
+    ss::future<> invalidate_keys();
 
 private:
     struct impl;

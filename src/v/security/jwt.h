@@ -24,12 +24,14 @@
 
 #include <absl/algorithm/container.h>
 #include <absl/container/flat_hash_map.h>
+#include <absl/container/flat_hash_set.h>
 #include <boost/algorithm/string/split.hpp>
 #include <cryptopp/base64.h>
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/integer.h>
 #include <cryptopp/osrng.h>
 #include <cryptopp/rsa.h>
+#include <gnutls/x509.h>
 
 #include <iosfwd>
 #include <optional>
@@ -53,21 +55,6 @@ template<typename ToCharT = char>
 std::basic_string_view<ToCharT> char_view_cast(string_viewable auto const& sv) {
     return {reinterpret_cast<ToCharT const*>(sv.data()), sv.length()};
 }
-
-struct string_viewable_compare {
-    using is_transparent = void;
-    bool operator()(
-      string_viewable auto const& lhs, string_viewable auto const& rhs) const {
-        return char_view_cast(lhs) == char_view_cast(rhs);
-    }
-};
-
-struct string_viewable_hasher {
-    using is_transparent = void;
-    size_t operator()(string_viewable auto const& sv) const {
-        return std::hash<std::string_view>{}(char_view_cast(sv));
-    }
-};
 
 using cryptopp_bytes = ss::basic_sstring<CryptoPP::byte, uint32_t, 31, false>;
 using cryptopp_byte_view = std::basic_string_view<cryptopp_bytes::value_type>;
@@ -394,9 +381,22 @@ private:
 
 constexpr const char rsa_str[] = "RSA";
 constexpr const char rs256_str[] = "RS256";
+constexpr const char rs384_str[] = "RS384";
+constexpr const char rs512_str[] = "RS512";
+
 using rs256_verifier = verifier_impl<
   CryptoPP::RSASS<CryptoPP::PKCS1v15, CryptoPP::SHA256>,
   rs256_str,
+  rsa_str>;
+
+using rs384_verifier = verifier_impl<
+  CryptoPP::RSASS<CryptoPP::PKCS1v15, CryptoPP::SHA384>,
+  rs384_str,
+  rsa_str>;
+
+using rs512_verifier = verifier_impl<
+  CryptoPP::RSASS<CryptoPP::PKCS1v15, CryptoPP::SHA512>,
+  rs512_str,
   rsa_str>;
 
 // Verify the signature of a message
@@ -420,12 +420,14 @@ public:
     }
 
 private:
-    using verifier_impls = std::variant<rs256_verifier>;
+    using verifier_impls
+      = std::variant<rs256_verifier, rs384_verifier, rs512_verifier>;
     verifier_impls _impl;
 };
 
-inline result<verifier> make_rs256_verifier(
-  json::Value const& jwk, CryptoPP::AutoSeededRandomPool& rng) {
+template<typename V>
+inline result<verifier>
+make_rsa_verifier(json::Value const& jwk, CryptoPP::AutoSeededRandomPool& rng) {
     CryptoPP::RSA::PublicKey key;
     try {
         auto n = detail::as_cryptopp_integer(jwk, "n");
@@ -440,20 +442,27 @@ inline result<verifier> make_rs256_verifier(
     } catch (CryptoPP::Exception const& ex) {
         return errc::jwk_invalid;
     }
-    return verifier{rs256_verifier{key}};
+    return verifier{V{key}};
 }
 
-using verifiers = absl::flat_hash_map<
-  ss::sstring,
-  detail::verifier,
-  detail::string_viewable_hasher,
-  detail::string_viewable_compare>;
+struct keyed_verifier {
+    std::optional<ss::sstring> kid;
+    detail::verifier verifier;
+};
+using verifiers = std::vector<keyed_verifier>;
 
 inline result<verifiers>
 make_verifiers(jwks const& jwks, CryptoPP::AutoSeededRandomPool& rng) {
     auto keys = jwks.keys();
     verifiers vs;
     for (auto const& key : keys) {
+        auto kty = detail::string_view(key, "kty");
+        // kty is required; we currently only support RSA
+        // https://datatracker.ietf.org/doc/html/rfc7517#section-4.1
+        if (kty != rsa_str) {
+            continue;
+        }
+
         // NOTE(oren): 'alg' field is optional per RFC 7517
         // https://datatracker.ietf.org/doc/html/rfc7517#section-4.4
         // In particular, Azure doesn't include it, so in its absence we can
@@ -469,7 +478,9 @@ make_verifiers(jwks const& jwks, CryptoPP::AutoSeededRandomPool& rng) {
         using factory = result<verifier> (*)(
           json::Value const&, CryptoPP::AutoSeededRandomPool&);
         auto v = string_switch<std::optional<factory>>(alg)
-                   .match(rs256_str, &make_rs256_verifier)
+                   .match(rs256_str, &make_rsa_verifier<rs256_verifier>)
+                   .match(rs384_str, &make_rsa_verifier<rs384_verifier>)
+                   .match(rs512_str, &make_rsa_verifier<rs512_verifier>)
                    .default_match(std::optional<factory>{});
         if (!v) {
             continue;
@@ -480,9 +491,13 @@ make_verifiers(jwks const& jwks, CryptoPP::AutoSeededRandomPool& rng) {
             continue;
         }
 
-        vs.insert_or_assign(
-          detail::string_view(key, "kid").value_or(""),
-          std::move(r).assume_value());
+        // kid is optional
+        // https://datatracker.ietf.org/doc/html/rfc7517#section-4.5
+        std::optional<ss::sstring> kid;
+        if (auto k = detail::string_view(key, "kid"); k.has_value()) {
+            kid.emplace(k.value());
+        }
+        vs.emplace_back(std::move(kid), std::move(r).assume_value());
     }
     if (vs.empty()) {
         return errc::jwks_invalid;
@@ -542,18 +557,38 @@ public:
             return jwt.assume_error();
         }
 
-        auto verifier = _verifiers.find(jwt.assume_value().kid().value());
-        if (verifier == _verifiers.end()) {
-            if (_verifiers.size() != 1) {
-                return errc::kid_not_found;
+        auto kid = jwt.assume_value().kid();
+        auto second_dot = jose_enc[0].length() + 1 + jose_enc[1].length();
+        auto msg = detail::char_view_cast<CryptoPP::byte>(
+          sv.substr(0, second_dot));
+
+        // If and if the jwt and the verifiers have a kid, then fail if the
+        // verification fails
+        auto v_it = _verifiers.end();
+        if (kid.has_value()) { // The jwt has a kid
+            v_it = absl::c_find_if(
+              _verifiers, [&kid](auto const& v) { return v.kid == kid; });
+            if (v_it != _verifiers.end()) { // The verifier has a kid
+                if (v_it->verifier.verify(msg, signature)) {
+                    return jwt;
+                } else {
+                    return errc::jws_invalid_sig;
+                }
             }
-            verifier = _verifiers.begin();
         }
 
-        auto second_dot = jose_enc[0].length() + 1 + jose_enc[1].length();
-        auto msg = sv.substr(0, second_dot);
-        if (!verifier->second.verify(
-              detail::char_view_cast<CryptoPP::byte>(msg), signature)) {
+        // At this point either the jws, the verifier, or both, didn't have a
+        // kid, try all the verifiers we didn't try above
+        bool verified = false;
+        for (auto it = _verifiers.begin(); it != _verifiers.end(); ++it) {
+            if (it != v_it && it->verifier.verify(msg, signature)) {
+                return jwt;
+            }
+        };
+        if (kid.has_value()) {
+            return errc::jwt_invalid_kid;
+        }
+        if (!verified) {
             return errc::jws_invalid_sig;
         }
 
@@ -567,12 +602,30 @@ public:
             return verifiers.assume_error();
         }
         _verifiers = std::move(verifiers).assume_value();
+
+        // Remove bad_kids that have been cached if we have a verifier for it
+        for (const auto& v : _verifiers) {
+            if (v.kid.value_or("").empty()) { // match all
+                _bad_kids = {};
+            } else if (v.kid.has_value()) {
+                _bad_kids.erase(v.kid.value());
+            }
+        }
+        _bad_kids.rehash(0);
+
         return outcome::success();
+    }
+
+    auto clear_bad_kids() {
+        auto size = _bad_kids.size();
+        _bad_kids = {};
+        return size;
     }
 
 private:
     CryptoPP::AutoSeededRandomPool _rng;
     detail::verifiers _verifiers;
+    mutable absl::flat_hash_set<ss::sstring> _bad_kids;
 };
 
 } // namespace security::oidc

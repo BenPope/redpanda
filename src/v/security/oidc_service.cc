@@ -385,6 +385,11 @@ struct service::impl {
           });
     }
 
+    auto invalidate_keys() {
+        _verifier.clear_bad_kids();
+        return update_jwks();
+    }
+
     ss::gate _gate;
     verifier _verifier;
     config::binding<std::vector<ss::sstring>> _sasl_mechanisms;
@@ -443,6 +448,6 @@ principal_mapping_rule const& service::get_principal_mapping_rule() const {
     return _impl->_rule;
 }
 
-ss::future<> service::refresh_keys() { return _impl->update_jwks(); }
+ss::future<> service::invalidate_keys() { return _impl->invalidate_keys(); }
 
 } // namespace security::oidc
