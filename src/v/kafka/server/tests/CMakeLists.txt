@@ -2,38 +2,37 @@ rp_test(
   UNIT_TEST
   BINARY_NAME test_kafka_server
   SOURCES
-    error_mapping_test.cc
-    timeouts_conversion_test.cc
-    types_conversion_tests.cc
-    topic_utils_test.cc
-    handler_interface_test.cc
-    quota_managers_test.cc
-    validator_tests.cc
-    fetch_unit_test.cc
-    config_utils_test.cc
+  error_mapping_test.cc
+  timeouts_conversion_test.cc
+  types_conversion_tests.cc
+  topic_utils_test.cc
+  handler_interface_test.cc
+  quota_managers_test.cc
+  validator_tests.cc
+  fetch_unit_test.cc
+  config_utils_test.cc
   DEFINITIONS BOOST_TEST_DYN_LINK
   LIBRARIES Boost::unit_test_framework v::kafka
   LABELS kafka
 )
 
-
 v_cc_library(
   NAME
-    kafka_test_utils
+  kafka_test_utils
   HDRS
-    "delete_records_utils.h"
-    "list_offsets_utils.h"
-    "offset_for_leader_epoch_utils.h"
-    "produce_consume_utils.h"
+  "delete_records_utils.h"
+  "list_offsets_utils.h"
+  "offset_for_leader_epoch_utils.h"
+  "produce_consume_utils.h"
   SRCS
-    "delete_records_utils.cc"
-    "list_offsets_utils.cc"
-    "offset_for_leader_epoch_utils.cc"
-    "produce_consume_utils.cc"
+  "delete_records_utils.cc"
+  "list_offsets_utils.cc"
+  "offset_for_leader_epoch_utils.cc"
+  "produce_consume_utils.cc"
   DEPS
-    v::bytes
-    v::kafka
-    v::storage
+  v::bytes
+  v::kafka
+  v::storage
 )
 
 set(srcs
@@ -66,12 +65,12 @@ rp_test(
   LABELS kafka
 )
 
-
 rp_test(
   BENCHMARK_TEST
   BINARY_NAME kafka_fetch_plan
   SOURCES fetch_plan_bench.cc
   LIBRARIES Seastar::seastar_perf_testing Boost::unit_test_framework v::application
+
   # the args below are just to keep it fast
   ARGS "-c 1 --duration=1 --runs=1 --memory=4G"
   LABELS kafka
@@ -82,6 +81,18 @@ rp_test(
   BINARY_NAME kafka_produce_partition
   SOURCES produce_partition_bench.cc
   LIBRARIES Seastar::seastar_perf_testing Boost::unit_test_framework v::application
+
+  # the args below are just to keep it fast
+  ARGS "-c 1 --duration=1 --runs=1 --memory=4G"
+  LABELS kafka
+)
+
+rp_test(
+  BENCHMARK_TEST
+  BINARY_NAME quota
+  SOURCES quota_bench.cc
+  LIBRARIES Seastar::seastar_perf_testing Boost::unit_test_framework v::application
+
   # the args below are just to keep it fast
   ARGS "-c 1 --duration=1 --runs=1 --memory=4G"
   LABELS kafka
