@@ -156,7 +156,6 @@ void finalize_worker_thread(OSSL_LIB_CTX* orig_ctx) {
 }
 } // namespace
 
-ossl_context_service::~ossl_context_service() noexcept = default;
 
 class ossl_context_service::impl final {
     friend class ossl_context_test_class;
@@ -319,6 +318,8 @@ ossl_context_service::ossl_context_service(
   : _impl(std::make_unique<impl>(
     thread_worker, std::move(config_file), std::move(module_path), fips_mode)) {
 }
+
+ossl_context_service::~ossl_context_service() noexcept = default;
 
 ss::future<> ossl_context_service::start() {
     if (in_rp_fixture_test()) {
