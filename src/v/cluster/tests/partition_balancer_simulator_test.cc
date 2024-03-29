@@ -737,24 +737,24 @@ FIXTURE_TEST(
 }
 
 FIXTURE_TEST(test_smol, partition_balancer_sim_fixture) {
-    for (size_t i = 0; i < 4; ++i) {
-        add_node(model::node_id{i}, 100_GiB);
+    for (model::node_id i{0}; i < 4; ++i) {
+        add_node(i, 100_GiB);
     }
 
     add_topic("topic_1", 3, 3, 1_GiB, 100_MiB);
     add_topic("topic_2", 3, 3, 1_GiB, 100_MiB);
 
-    for (size_t i = 4; i < 6; ++i) {
-        add_node(model::node_id{i}, 100_GiB);
-        add_node_to_rebalance(model::node_id{i});
+    for (model::node_id i{4}; i < 6; ++i) {
+        add_node(i, 100_GiB);
+        add_node_to_rebalance(i);
     }
 
     BOOST_REQUIRE(run_to_completion(10));
 }
 
 FIXTURE_TEST(test_heterogeneous_topics, partition_balancer_sim_fixture) {
-    for (size_t i = 0; i < 9; ++i) {
-        add_node(model::node_id{i}, 300_GiB);
+    for (model::node_id i{0}; i < 9; ++i) {
+        add_node(i, 300_GiB);
     }
 
     // Add 2 topics with drastically different partition sizes.
@@ -763,9 +763,9 @@ FIXTURE_TEST(test_heterogeneous_topics, partition_balancer_sim_fixture) {
     add_topic("topic_1", 200, 3, 2_GiB, 200_MiB);
     add_topic("topic_2", 800, 3, 10_MiB, 1_MiB);
 
-    for (size_t i = 9; i < 12; ++i) {
-        add_node(model::node_id{i}, 300_GiB);
-        add_node_to_rebalance(model::node_id{i});
+    for (model::node_id i{9}; i < 12; ++i) {
+        add_node(i, 300_GiB);
+        add_node_to_rebalance(i);
     }
 
     BOOST_REQUIRE(run_to_completion(1000));
@@ -775,8 +775,8 @@ FIXTURE_TEST(test_heterogeneous_topics, partition_balancer_sim_fixture) {
 }
 
 FIXTURE_TEST(test_many_topics, partition_balancer_sim_fixture) {
-    for (size_t i = 0; i < 4; ++i) {
-        add_node(model::node_id{i}, 100_GiB);
+    for (model::node_id i{0}; i < 4; ++i) {
+        add_node(i, 100_GiB);
     }
 
     for (size_t i = 0; i < 100; ++i) {
@@ -799,9 +799,9 @@ FIXTURE_TEST(test_many_topics, partition_balancer_sim_fixture) {
           partition_size / 10);
     }
 
-    for (size_t i = 4; i < 6; ++i) {
-        add_node(model::node_id{i}, 100_GiB);
-        add_node_to_rebalance(model::node_id{i});
+    for (model::node_id i{4}; i < 6; ++i) {
+        add_node(i, 100_GiB);
+        add_node_to_rebalance(i);
     }
 
     BOOST_REQUIRE(run_to_completion(1000));
