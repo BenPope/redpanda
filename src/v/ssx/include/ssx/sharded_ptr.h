@@ -15,6 +15,7 @@
 #include "base/vassert.h"
 #include "utils/mutex.h"
 
+#include <seastar/core/future.hh>
 #include <seastar/core/smp.hh>
 #include <seastar/coroutine/parallel_for_each.hh>
 
@@ -82,6 +83,34 @@ public:
     template<typename... Args>
     ss::future<> reset(Args&&... args) {
         return reset(std::make_shared<T>(std::forward<Args>(args)...));
+    }
+
+    /// updates the managed object u with an update function
+    /// The update function takes a copy of the underlying object and creates a
+    /// new object using the update function. The update is executed inside the
+    /// guard of the update mutex to ensure that updates are executed
+    /// sequentially.
+    /// Must be called on the home shard and is safe to call concurrently.
+    /// returns an ss::broken_semaphore if stop() has been called.
+    template<typename F>
+    requires std::invocable<F, T>
+             && std::same_as<
+               ss::future<T>,
+               ss::futurize_t<std::invoke_result_t<F, T>>>
+    ss::future<> update(F&& update_func) {
+        assert_shard();
+        auto mu{co_await _mutex.get_units()};
+        if (_state.empty()) {
+            _state.resize(ss::smp::count);
+        }
+
+        auto new_value = local() ? T{*local()} : T{};
+        auto updated_new_value = co_await ss::futurize_invoke(
+          std::forward<F>(update_func), std::move(new_value));
+        auto new_ref = std::make_shared<T>(std::move(updated_new_value));
+        auto copy_to_deallocate_on_owner_shard = local();
+        co_await ss::smp::invoke_on_all(
+          [this, new_ref]() noexcept { local() = new_ref; });
     }
 
     /// stop managing any object.
