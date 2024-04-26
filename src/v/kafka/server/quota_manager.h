@@ -13,18 +13,24 @@
 #include "base/seastarx.h"
 #include "config/client_group_byte_rate_quota.h"
 #include "config/property.h"
+#include "kafka/server/atomic_token_bucket.h"
 #include "kafka/server/token_bucket_rate_tracker.h"
 #include "resource_mgmt/rate.h"
+#include "ssx/sharded_ptr.h"
+#include "utils/absl_sstring_hash.h"
 
 #include <seastar/core/future.hh>
 #include <seastar/core/lowres_clock.hh>
 #include <seastar/core/sharded.hh>
+#include <seastar/core/shared_ptr.hh>
 #include <seastar/core/sstring.hh>
 #include <seastar/core/timer.hh>
+#include <seastar/util/shared_token_bucket.hh>
 
-#include <absl/container/flat_hash_map.h>
+#include <absl/container/node_hash_map.h>
 
 #include <chrono>
+#include <memory>
 #include <optional>
 #include <string_view>
 
@@ -58,7 +64,60 @@ public:
         clock::duration duration{0};
     };
 
-    quota_manager();
+    using bucket_t = atomic_token_bucket<ss::internal::capped_release::yes>;
+
+    /// A thread-safe reference wrapper to help safely share a thread-safe value
+    /// across cores. It is safe to hold on to this reference across scheduling
+    /// points. This wrapped ensures that deallocation happens on the core that
+    /// created this wrapper.
+    template<typename T>
+    class value_node {
+    public:
+        value_node(std::unique_ptr<T> unq)
+          : _value{std::make_shared<ss::foreign_ptr<std::unique_ptr<T>>>(
+            std::move(unq))} {}
+
+        /// Takes a non-owning reference to the wrapped value
+        /// The lifetime of the reference is at least the lifetime of the node.
+        T& operator*() const { return &*_value.get()->get(); }
+
+        /// Takes a non-owning pointer to the wrapped value
+        /// The lifetime of the pointer is at least the lifetime of the node.
+        T* operator->() const { return _value.get()->get(); }
+
+    private:
+        // TODO: replace std::shared_ptr with ssx::sharded_ptr to reduce
+        // cross-core contention on the reference count
+        // Note: the unique_ptr is only needed because ss::foreign_ptr expects
+        // to wrap a pointer type
+        std::shared_ptr<ss::foreign_ptr<std::unique_ptr<T>>> _value;
+    };
+
+    template<typename T, typename... Args>
+    value_node<T> make_value_node(Args&&... args) {
+        return value_node<T>(std::make_unique<T>(std::forward<Args>(args)...));
+    }
+
+    // Accounting for quota on per-client and per-client-group basis
+    // last_seen: used for gc keepalive
+    // tp_rate: throughput tracking
+    // pm_rate: partition mutation quota tracking - only on home shard
+    struct client_quota {
+        clock::time_point last_seen;
+        // TODO: do we need to pad these?
+        std::optional<bucket_t> tp_produce_rate;
+        std::optional<bucket_t> tp_fetch_rate;
+        std::optional<token_bucket_rate_tracker> pm_rate;
+    };
+
+    using client_quotas_map_t = absl::node_hash_map<
+      ss::sstring,
+      value_node<client_quota>,
+      sstring_hash,
+      sstring_eq>;
+    using client_quotas_t = ssx::sharded_ptr<client_quotas_map_t>;
+
+    explicit quota_manager(client_quotas_t& client_quotas);
     quota_manager(const quota_manager&) = delete;
     quota_manager& operator=(const quota_manager&) = delete;
     quota_manager(quota_manager&&) = delete;
@@ -103,33 +162,19 @@ private:
       uint32_t mutations,
       clock::time_point now);
 
-    // throttle, return <previous delay, new delay>
-    std::chrono::milliseconds throttle(
+    std::chrono::milliseconds cap_to_max_delay(
       std::optional<std::string_view> client_id,
-      uint32_t target_rate,
-      const clock::time_point& now,
-      rate_tracker& rate_tracker);
-
-    // Accounting for quota on per-client and per-client-group basis
-    // last_seen: used for gc keepalive
-    // delay: last calculated delay
-    // tp_rate: throughput tracking
-    // pm_rate: partition mutation quota tracking - only on home shard
-    struct client_quota {
-        clock::time_point last_seen;
-        rate_tracker tp_produce_rate;
-        rate_tracker tp_fetch_rate;
-        std::optional<token_bucket_rate_tracker> pm_rate;
-    };
-    using client_quotas_t = absl::flat_hash_map<ss::sstring, client_quota>;
+      std::chrono::milliseconds delay_ms);
 
 private:
     // erase inactive tracked quotas. windows are considered inactive if they
     // have not received any updates in ten window's worth of time.
-    void gc(clock::duration full_window);
+    void gc();
 
-    ss::future<client_quotas_t::iterator> maybe_add_and_retrieve_quota(
+    ss::future<std::optional<value_node<quota_manager::client_quota>>>
+    maybe_add_and_retrieve_quota(
       std::optional<std::string_view>, const clock::time_point);
+    ss::future<> add_quota_id(std::string_view quota_id, clock::time_point now);
     int64_t get_client_target_produce_tp_rate(
       const std::optional<std::string_view>& quota_id);
     std::optional<int64_t> get_client_target_fetch_tp_rate(
@@ -138,6 +183,7 @@ private:
 private:
     config::binding<int16_t> _default_num_windows;
     config::binding<std::chrono::milliseconds> _default_window_width;
+    config::binding<std::optional<int64_t>> _replenish_threshold;
 
     config::binding<uint32_t> _default_target_produce_tp_rate;
     config::binding<std::optional<uint32_t>> _default_target_fetch_tp_rate;
@@ -147,11 +193,12 @@ private:
     config::binding<std::unordered_map<ss::sstring, config::client_group_quota>>
       _target_fetch_tp_rate_per_client_group;
 
-    client_quotas_t _client_quotas;
+    client_quotas_t& _client_quotas;
 
     ss::timer<> _gc_timer;
     clock::duration _gc_freq;
     config::binding<std::chrono::milliseconds> _max_delay;
+    ss::gate _gate;
 };
 
 } // namespace kafka
