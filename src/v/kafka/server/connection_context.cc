@@ -495,8 +495,21 @@ connection_context::record_tp_and_calculate_throttle(
     }
 
     // Sum up
-    const clock::duration delay_enforce = std::max(
-      shard_delays.enforce, client_quota_delay.enforce_duration());
+    clock::duration delay_enforce = clock::duration::zero();
+    if (hdr.key == fetch_api::key) {
+        auto fetch_enforced = _throttling_state.update_fetch_delay(
+          client_quota_delay.duration, now);
+        delay_enforce = std::max(delay_enforce, fetch_enforced);
+    } else if (hdr.key == produce_api::key) {
+        auto produce_enforced = _throttling_state.update_produce_delay(
+          client_quota_delay.duration, now);
+        delay_enforce = std::max(delay_enforce, produce_enforced);
+    }
+    if (_kafka_throughput_controlled_api_keys().at(hdr.key)) {
+        auto snc_enforced = _throttling_state.update_snc_delay(
+          shard_delays.request, now);
+        delay_enforce = std::max(delay_enforce, snc_enforced);
+    }
     const clock::duration delay_request = std::max(
       {shard_delays.request,
        client_quota_delay.duration,
@@ -507,13 +520,12 @@ connection_context::record_tp_and_calculate_throttle(
         vlog(
           klog.trace,
           "[{}:{}] throttle request:{{snc:{}, client:{}}}, "
-          "enforce:{{snc:{}, client:{}}}, key:{}, request_size:{}",
+          "enforce:{}, key:{}, request_size:{}",
           _client_addr,
           client_port(),
           shard_delays.request,
           client_quota_delay.duration,
-          shard_delays.enforce,
-          client_quota_delay.enforce_duration(),
+          delay_enforce,
           hdr.key,
           request_size);
     }
