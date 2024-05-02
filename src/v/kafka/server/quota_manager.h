@@ -17,6 +17,7 @@
 #include "kafka/server/token_bucket_rate_tracker.h"
 #include "resource_mgmt/rate.h"
 #include "ssx/sharded_ptr.h"
+#include "ssx/sharded_value.h"
 #include "utils/absl_sstring_hash.h"
 
 #include <seastar/core/future.hh>
@@ -103,7 +104,7 @@ public:
     // tp_rate: throughput tracking
     // pm_rate: partition mutation quota tracking - only on home shard
     struct client_quota {
-        clock::time_point last_seen;
+        ssx::sharded_value<clock::time_point> last_seen_ms;
         // TODO: do we need to pad these?
         std::optional<bucket_t> tp_produce_rate;
         std::optional<bucket_t> tp_fetch_rate;
@@ -170,6 +171,7 @@ private:
     // erase inactive tracked quotas. windows are considered inactive if they
     // have not received any updates in ten window's worth of time.
     void gc();
+    ss::future<> do_gc(clock::time_point expire_threshold);
 
     ss::future<std::optional<value_node<quota_manager::client_quota>>>
     maybe_add_and_retrieve_quota(
