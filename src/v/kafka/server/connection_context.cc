@@ -491,7 +491,7 @@ connection_context::record_tp_and_calculate_throttle(
         _server.snc_quota_mgr().record_request_receive(
           *_snc_quota_context, request_size, now);
         shard_delays = _server.snc_quota_mgr().get_shard_delays(
-          *_snc_quota_context, now);
+          *_snc_quota_context);
     }
 
     // Sum up
