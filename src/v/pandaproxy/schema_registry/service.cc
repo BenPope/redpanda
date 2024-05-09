@@ -112,7 +112,7 @@ private:
       config::rest_authn_method authn_method,
       auth_level lvl,
       request_authenticator& authenticator,
-      const ss::http::request& req) {
+      const ss::http::request& req) const {
         credential_t user;
 
         if (authn_method != config::rest_authn_method::none) {
@@ -240,6 +240,7 @@ private:
 };
 
 server::routes_t get_schema_registry_routes(ss::gate& gate, one_shot& es) {
+    using auth_level = wrap::auth_level;
     server::routes_t routes;
     routes.api = ss::httpd::schema_registry_json::name;
 
