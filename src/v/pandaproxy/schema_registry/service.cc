@@ -74,19 +74,7 @@ public:
         rq.authn_method = config::get_authn_method(
           rq.service().config().schema_registry_api.value(),
           rq.req->get_listener_idx());
-        try {
-            rq.user = maybe_authorize_request(
-              rq.authn_method,
-              _auth_level,
-              rq.service().authenticator(),
-              *rq.req);
-        } catch (unauthorized_user_exception& e) {
-            audit_authn_failure(rq, e.get_username(), e.what());
-            throw;
-        } catch (ss::httpd::base_exception& e) {
-            audit_authn_failure(rq, "", e.what());
-            throw;
-        }
+        rq.user = handle_auth(rq);
 
         audit_authn(rq);
 
@@ -108,19 +96,31 @@ public:
     }
 
 private:
-    inline credential_t maybe_authorize_request(
-      config::rest_authn_method authn_method,
-      auth_level lvl,
-      request_authenticator& authenticator,
-      const ss::http::request& req) const {
+    inline request_auth_result
+    maybe_authenticate_request(const server::request_t& rq) const {
+        try {
+            return rq.service().authenticator().authenticate(*rq.req);
+        } catch (unauthorized_user_exception& e) {
+            audit_authn_failure(rq, "", e.what());
+            throw;
+        } catch (ss::httpd::base_exception& e) {
+            audit_authn_failure(rq, "", e.what());
+            throw;
+        }
+    }
+
+    // Authenticates and authorizes the request when HTTP Basic Auth is enabled
+    // and return the authenticated user. Otherwise return the default user.
+    // On failure, it throws and handles audit logging
+    inline credential_t handle_auth(const server::request_t& rq) const {
         credential_t user;
 
-        if (authn_method != config::rest_authn_method::none) {
+        if (rq.authn_method != config::rest_authn_method::none) {
             // Will throw 400 & 401 if auth fails
-            auto auth_result = authenticator.authenticate(req);
+            auto auth_result = maybe_authenticate_request(rq);
             // Will throw 403 if user enabled HTTP Basic Auth but
             // did not give the authorization header.
-            switch (lvl) {
+            switch (_auth_level) {
             case auth_level::superuser:
                 auth_result.require_superuser();
                 break;
