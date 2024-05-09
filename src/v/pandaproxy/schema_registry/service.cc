@@ -109,17 +109,9 @@ private:
         }
     }
 
-    // Authenticates and authorizes the request when HTTP Basic Auth is enabled
-    // and return the authenticated user. Otherwise return the default user.
-    // On failure, it throws and handles audit logging
-    inline credential_t handle_auth(const server::request_t& rq) const {
-        credential_t user;
-
-        if (rq.authn_method != config::rest_authn_method::none) {
-            // Will throw 400 & 401 if auth fails
-            auto auth_result = maybe_authenticate_request(rq);
-            // Will throw 403 if user enabled HTTP Basic Auth but
-            // did not give the authorization header.
+    inline void maybe_authorize_request(
+      const server::request_t& rq, request_auth_result& auth_result) const {
+        try {
             switch (_auth_level) {
             case auth_level::superuser:
                 auth_result.require_superuser();
@@ -131,6 +123,27 @@ private:
                 auth_result.pass();
                 break;
             }
+        } catch (unauthorized_user_exception& e) {
+            audit_authz_failure(rq, auth_result, e.what());
+            throw;
+        } catch (ss::httpd::base_exception& e) {
+            audit_authz_failure(rq, auth_result, e.what());
+            throw;
+        }
+    }
+
+    // Authenticates and authorizes the request when HTTP Basic Auth is enabled
+    // and return the authenticated user. Otherwise return the default user.
+    // On failure, it throws and handles audit logging
+    inline credential_t handle_auth(const server::request_t& rq) const {
+        credential_t user;
+
+        if (rq.authn_method != config::rest_authn_method::none) {
+            // Will throw 400 & 401 if auth fails
+            auto auth_result = maybe_authenticate_request(rq);
+            // Will throw 403 if user enabled HTTP Basic Auth but
+            // did not give the authorization header.
+            maybe_authorize_request(rq, auth_result);
 
             user = credential_t{
               auth_result.get_username(),
@@ -193,6 +206,31 @@ private:
     }
 
     void audit_authz(const server::request_t& rq) const { do_audit_authz(rq); }
+
+    void audit_authz_failure(
+      const server::request_t& rq,
+      const request_auth_result auth_result,
+      ss::sstring reason) const {
+        vlog(
+          plog.trace, "Attempting to audit authz for {}", rq.req->format_url());
+        auto success = rq.service().audit_mgr().enqueue_api_activity_event(
+          security::audit::event_type::schema_registry,
+          *rq.req,
+          auth_result,
+          audit_svc_name,
+          false,
+          std::move(reason));
+
+        if (!success) {
+            vlog(
+              plog.error,
+              "Failed to audit authorization request for endpoint: {}",
+              rq.req->format_url());
+            throw ss::httpd::base_exception(
+              "Failed to audit authorization request",
+              ss::http::reply::status_type::service_unavailable);
+        }
+    }
 
     void do_audit_authn(
       const server::request_t& rq,
