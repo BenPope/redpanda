@@ -147,6 +147,7 @@ FIXTURE_TEST(
 
     const pps::subject subject{"test-key"};
     put_config(client, subject, pps::compatibility_level::none);
+    put_mode(client, subject, pps::mode::import);
 
     {
         info("Post schema 4 as key with id 4 (higher than next_id)");

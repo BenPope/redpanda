@@ -2061,6 +2061,110 @@ class SchemaRegistryModeMutableTest(SchemaRegistryEndpoints):
         result_raw = self._get_schemas_ids_id_versions(id=1)
         assert result_raw.status_code == 200
 
+    @cluster(num_nodes=3)
+    def test_mode_import(self):
+        """
+        Smoketest mode endpoints
+        """
+        subject = f"{create_topic_names(1)[0]}-key"
+        not_subject = f"{create_topic_names(1)[0]}-key"
+
+        self.logger.debug("Get initial global mode")
+        result_raw = self._get_mode()
+        assert result_raw.status_code == 200
+        assert result_raw.json()["mode"] == "READWRITE"
+
+        self.logger.debug("Set invalid global mode")
+        result_raw = self._set_mode(data=json.dumps({"mode": "INVALID"}))
+        assert result_raw.status_code == 422
+        assert result_raw.json()["error_code"] == 42204
+
+        self.logger.debug("Set global mode")
+        result_raw = self._set_mode(data=json.dumps({"mode": "READONLY"}))
+        assert result_raw.status_code == 200
+        assert result_raw.json()["mode"] == "READONLY"
+
+        self.logger.debug("Get global mode")
+        result_raw = self._get_mode()
+        assert result_raw.status_code == 200
+        assert result_raw.json()["mode"] == "READONLY"
+
+        self.logger.debug("Get mode for non-existant subject")
+        result_raw = self._get_mode_subject(subject=not_subject)
+        assert result_raw.status_code == 404
+        assert result_raw.json()["error_code"] == 40409
+
+        self.logger.debug("Get mode for non-existant subject, with fallback")
+        result_raw = self._get_mode_subject(subject=not_subject, fallback=True)
+        assert result_raw.status_code == 200
+        assert result_raw.json()["mode"] == "READONLY"
+
+        self.logger.debug("Set mode for non-existant subject (allowed)")
+        result_raw = self._set_mode_subject(subject=subject,
+                                            data=json.dumps(
+                                                {"mode": "READWRITE"}))
+        assert result_raw.status_code == 200
+        assert result_raw.json()["mode"] == "READWRITE"
+
+        self.logger.debug("Set invalid subject mode")
+        result_raw = self._set_mode_subject(subject="test-sub",
+                                            data=json.dumps(
+                                                {"mode": "INVALID"}))
+        assert result_raw.status_code == 422
+        assert result_raw.json()["error_code"] == 42204
+
+        self.logger.debug("Get mode for non-existant subject")
+        result_raw = self._get_mode_subject(subject=subject, fallback=False)
+        assert result_raw.status_code == 200
+        assert result_raw.json()["mode"] == "READWRITE"
+
+        self.logger.debug("Delete mode for non-existant subject")
+        result_raw = self._delete_mode_subject(subject=subject)
+        assert result_raw.status_code == 200
+        assert result_raw.json()["mode"] == "READWRITE"
+
+        self.logger.debug("Get mode for non-existant subject")
+        result_raw = self._get_mode_subject(subject=subject, fallback=False)
+        assert result_raw.status_code == 404
+        assert result_raw.json()["error_code"] == 40409
+
+        self.logger.debug("Set global mode to READWRITE")
+        result_raw = self._set_mode(data=json.dumps({"mode": "READWRITE"}))
+        assert result_raw.status_code == 200
+
+        self.logger.debug("Add a schema")
+        result_raw = self._post_subjects_subject_versions(
+            subject=subject, data=json.dumps({"schema": schema1_def}))
+        assert result_raw.status_code == requests.codes.ok
+
+        self.logger.debug("Set global mode to IMPORT")
+        result_raw = self._set_mode(data=json.dumps({"mode": "IMPORT"}))
+        assert result_raw.status_code == 422
+        assert result_raw.json()["error_code"] == 42205
+        assert result_raw.json(
+        )["message"] == "Cannot import since found existing subjects"
+
+        self.logger.debug("Set subject mode to IMPORT")
+        result_raw = self._set_mode_subject(subject="test-sub",
+                                            data=json.dumps({"mode":
+                                                             "IMPORT"}))
+        assert result_raw.status_code == 422
+        assert result_raw.json()["error_code"] == 42205
+        assert result_raw.json(
+        )["message"] == "Cannot import since found existing subjects"
+
+        self.logger.debug("Force set subject mode to IMPORT")
+        result_raw = self._set_mode_subject(subject="test-sub",
+                                            force=True,
+                                            data=json.dumps({"mode":
+                                                             "IMPORT"}))
+        assert result_raw.status_code == 200
+
+        self.logger.debug("Force set global mode to IMPORT")
+        result_raw = self._set_mode(force=True,
+                                    data=json.dumps({"mode": "IMPORT"}))
+        assert result_raw.status_code == 200
+
 
 class SchemaRegistryBasicAuthTest(SchemaRegistryEndpoints):
     """

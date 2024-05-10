@@ -63,6 +63,7 @@ constexpr std::string_view mode_key_sub_0{
   R"({"keytype":"MODE","subject":"subject_0","magic":0})"};
 constexpr std::string_view mode_value_rw{R"({"mode":"READWRITE"})"};
 constexpr std::string_view mode_value_ro{R"({"mode":"READONLY"})"};
+constexpr std::string_view mode_value_import{R"({"mode":"IMPORT"})"};
 
 constexpr std::string_view schema_key_0{
   R"({"keytype":"SCHEMA","subject":"subject_0","version":1,"magic":1})"};
@@ -157,6 +158,11 @@ SEASTAR_THREAD_TEST_CASE(test_consume_to_store_3rdparty) {
       c._store.get_mode(pps::subject{"subject_0"}, pps::default_to_global::yes)
         .get(),
       pps ::mode::read_only);
+
+    // test mode IMPORT
+    BOOST_REQUIRE_NO_THROW(
+      c(make_record_batch(mode_key_0, mode_value_import, base_offset++)).get());
+    BOOST_REQUIRE_EQUAL(c._store.get_mode().get(), pps::mode::import);
 
     // test mode READWRITE
     BOOST_REQUIRE_NO_THROW(

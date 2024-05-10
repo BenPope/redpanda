@@ -316,6 +316,7 @@ enum class seq_marker_key_type {
     invalid = 0,
     schema,
     delete_subject,
+    clear_subject,
     config,
     mode
 };
@@ -326,6 +327,8 @@ constexpr std::string_view to_string_view(seq_marker_key_type v) {
         return "schema";
     case seq_marker_key_type::delete_subject:
         return "delete_subject";
+    case seq_marker_key_type::clear_subject:
+        return "clear_subject";
     case seq_marker_key_type::config:
         return "config";
     case seq_marker_key_type::mode:

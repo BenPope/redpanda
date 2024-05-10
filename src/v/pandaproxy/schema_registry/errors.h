@@ -183,4 +183,10 @@ inline error_info mode_is_readonly(const std::optional<subject>& sub) {
         "Subject {} is in read-only mode", sub.value_or(subject{"null"}))};
 }
 
+inline error_info mode_not_import(const subject& sub) {
+    return error_info{
+      error_code::subject_version_operaton_not_permitted,
+      fmt::format("Subject {} is not in import mode", sub())};
+}
+
 } // namespace pandaproxy::schema_registry

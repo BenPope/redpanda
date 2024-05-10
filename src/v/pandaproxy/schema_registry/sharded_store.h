@@ -104,6 +104,9 @@ public:
     ss::future<std::vector<schema_version>>
     delete_subject(seq_marker marker, subject sub, permanent_delete permanent);
 
+    ///\brief Clear a subject.
+    ss::future<> clear_subject(seq_marker marker, subject sub);
+
     ss::future<is_deleted> is_subject_deleted(subject sub);
 
     ss::future<is_deleted>
@@ -125,6 +128,10 @@ public:
     ///\brief Get sequence number history (errors out if not soft-deleted)
     ss::future<std::vector<seq_marker>>
     get_subject_version_written_at(subject sub, schema_version version);
+
+    ///\brief Get sequence number history
+    ss::future<std::vector<seq_marker>>
+    get_clear_subject_written_at(subject sub);
 
     ///\brief Delete a subject version
     /// \param force Override checks for soft-delete first.

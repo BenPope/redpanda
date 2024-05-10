@@ -350,6 +350,24 @@ public:
         return result;
     }
 
+    /// \brief Return the seq_marker write history for clear_subject.
+    ///
+    /// \return A vector with at least one element
+    result<std::vector<seq_marker>>
+    get_clear_subject_written_at(const subject& sub) const {
+        std::vector<seq_marker> result;
+        if (auto sub_it = _subjects.find(sub); sub_it != _subjects.end()) {
+            std::copy_if(
+              sub_it->second.written_at.begin(),
+              sub_it->second.written_at.end(),
+              std::back_inserter(result),
+              [](const auto& sm) {
+                  return sm.key_type == seq_marker_key_type::clear_subject;
+              });
+        }
+        return result;
+    }
+
     ///\brief If this schema ID isn't already in the version list, return
     ///       what the version number will be if it is inserted.
     std::optional<schema_version>
@@ -466,6 +484,18 @@ public:
         }
 
         return res;
+    }
+
+    ///\brief Clear a subject.
+    result<void> clear_subject(seq_marker marker, const subject& sub) {
+        if (auto sub_it = _subjects.find(sub); sub_it != _subjects.end()) {
+            sub_it->second.written_at.push_back(marker);
+            sub_it->second.compatibility = std::nullopt;
+            sub_it->second.mode = std::nullopt;
+            sub_it->second.deleted = is_deleted::no;
+            sub_it->second.versions = {};
+        }
+        return outcome::success();
     }
 
     ///\brief Delete a subject version.

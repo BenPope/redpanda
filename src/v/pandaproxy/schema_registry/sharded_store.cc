@@ -139,6 +139,12 @@ sharded_store::get_schema_version(subject_schema schema) {
 
     // Determine if a provided schema id is appropriate
     if (schema.id != invalid_schema_id) {
+        auto mode = co_await get_mode(
+          schema.schema.sub(), default_to_global::no);
+        if (mode != mode::import) {
+            co_return ss::coroutine::return_exception(
+              as_exception(mode_not_import(schema.schema.sub())));
+        }
         if (s_id.has_value() && s_id != schema.id) {
             co_return ss::coroutine::return_exception(exception(
               error_code::subject_version_schema_id_already_exists,
@@ -444,6 +450,14 @@ ss::future<std::vector<schema_version>> sharded_store::delete_subject(
       });
 }
 
+ss::future<> sharded_store::clear_subject(seq_marker marker, subject sub) {
+    auto sub_shard{shard_for(sub)};
+    co_return co_await _store.invoke_on(
+      sub_shard, _smp_opts, [marker, sub{std::move(sub)}](store& s) {
+          return s.clear_subject(marker, sub).value();
+      });
+}
+
 ss::future<is_deleted> sharded_store::is_subject_deleted(subject sub) {
     auto sub_shard{shard_for(sub)};
     co_return co_await _store.invoke_on(
@@ -494,6 +508,15 @@ sharded_store::get_subject_version_written_at(subject sub, schema_version ver) {
     co_return co_await _store.invoke_on(
       sub_shard, _smp_opts, [sub{std::move(sub)}, ver](store& s) {
           return s.get_subject_version_written_at(sub, ver).value();
+      });
+}
+
+ss::future<std::vector<seq_marker>>
+sharded_store::get_clear_subject_written_at(subject sub) {
+    auto sub_shard{shard_for(sub)};
+    co_return co_await _store.invoke_on(
+      sub_shard, _smp_opts, [sub{std::move(sub)}](store& s) {
+          return s.get_clear_subject_written_at(sub).value();
       });
 }
 

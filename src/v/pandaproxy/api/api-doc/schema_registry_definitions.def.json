@@ -98,7 +98,8 @@
           "type": "string",
           "enum": [
             "READWRITE",
-            "READONLY"
+            "READONLY",
+            "IMPORT"
           ]
         },
       }

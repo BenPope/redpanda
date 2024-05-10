@@ -45,6 +45,17 @@ inline auto put_config(
       ppj::serialization_format::schema_registry_v1_json);
 }
 
+inline auto
+put_mode(http::client& client, const pps::subject& sub, pps::mode mode) {
+    return http_request(
+      client,
+      fmt::format("/mode/{}", sub()),
+      make_body(fmt::format(R"({{"mode": "{}"}})", to_string_view(mode))),
+      boost::beast::http::verb::put,
+      ppj::serialization_format::schema_registry_v1_json,
+      ppj::serialization_format::schema_registry_v1_json);
+}
+
 inline auto post_schema(
   http::client& client, const pps::subject& sub, const ss::sstring& payload) {
     return http_request(

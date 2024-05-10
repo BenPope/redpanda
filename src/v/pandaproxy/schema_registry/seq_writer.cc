@@ -79,6 +79,11 @@ struct batch_builder : public storage::record_batch_builder {
               .seq{s.seq}, .node{s.node}, .sub{*sub}};
             add_raw_kv(to_json_iobuf(std::move(key)), std::nullopt);
         } break;
+        case seq_marker_key_type::clear_subject: {
+            auto key = clear_subject_key{
+              .seq{s.seq}, .node{s.node}, .sub{*sub}};
+            add_raw_kv(to_json_iobuf(std::move(key)), std::nullopt);
+        } break;
         case seq_marker_key_type::config: {
             auto key = config_key{.seq{s.seq}, .node{s.node}, .sub{sub}};
             add_raw_kv(to_json_iobuf(std::move(key)), std::nullopt);
@@ -372,8 +377,23 @@ ss::future<std::optional<bool>> seq_writer::do_write_mode(
     }
 
     batch_builder rb(write_at, sub);
+    auto running_write_at = write_at;
+    if (m == mode::import && !f) {
+        if (co_await _store.has_subjects(include_deleted::no)) {
+            throw as_exception(error_info{
+              error_code::subject_version_operaton_not_permitted,
+              "Cannot import since found existing subjects"});
+        }
+        if (sub) {
+            rb(
+              clear_subject_key{
+                .seq{running_write_at++}, .node{_node_id}, .sub{*sub}},
+              clear_subject_value{.sub{*sub}});
+        }
+    }
+
     rb(
-      mode_key{.seq{write_at}, .node{_node_id}, .sub{sub}},
+      mode_key{.seq{running_write_at++}, .node{_node_id}, .sub{sub}},
       mode_value{.mode = m});
 
     if (co_await produce_and_apply(write_at, std::move(rb).build())) {
@@ -553,6 +573,7 @@ seq_writer::delete_subject_permanent_inner(
 
     // Deleting the subject, or the last version, deletes the subject
     if (!version.has_value() || versions.size() == 1) {
+        rb(co_await _store.get_clear_subject_written_at(sub));
         rb(co_await _store.get_subject_written_at(sub));
     }
     rb(sequences);
