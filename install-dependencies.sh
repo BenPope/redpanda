@@ -71,6 +71,7 @@ fedora_deps=(
   golang
   hwloc-devel
   krb5-devel
+  libarrow
   libxml2-devel
   libzstd-devel
   lksctp-tools-devel
@@ -82,6 +83,7 @@ fedora_deps=(
   numactl-devel
   openssl
   openssl-devel
+  parquet-libs-devel
   procps
   protobuf-devel
   python3

@@ -128,6 +128,9 @@ FetchContent_Declare(
   SYSTEM
   SOURCE_SUBDIR crates/c-api)
 
+find_package(Arrow REQUIRED)
+find_package(Parquet REQUIRED)
+
 FetchContent_MakeAvailable(
     absl
     fmt
