@@ -475,16 +475,22 @@ connection_context::record_tp_and_calculate_throttle(
 
     // Throttle on client based quotas
     quota_manager::throttle_delay client_quota_delay{};
+    clock::duration client_enforce = clock::duration::zero();
     if (hdr.key == fetch_api::key) {
         client_quota_delay = _server.quota_mgr().throttle_fetch_tp(
           hdr.client_id, now);
+        client_enforce = _throttling_state.update_fetch_delay(
+          client_quota_delay.duration, now);
     } else if (hdr.key == produce_api::key) {
         client_quota_delay = _server.quota_mgr().record_produce_tp_and_throttle(
           hdr.client_id, request_size, now);
+        client_enforce = _throttling_state.update_produce_delay(
+          client_quota_delay.duration, now);
     }
 
     // Throttle on shard wide quotas
     snc_quota_manager::delays_t shard_delays;
+    clock::duration snc_enforce = clock::duration::zero();
     if (_kafka_throughput_controlled_api_keys().at(hdr.key)) {
         _server.snc_quota_mgr().get_or_create_quota_context(
           _snc_quota_context, hdr.client_id);
@@ -492,40 +498,27 @@ connection_context::record_tp_and_calculate_throttle(
           *_snc_quota_context, request_size, now);
         shard_delays = _server.snc_quota_mgr().get_shard_delays(
           *_snc_quota_context);
+        snc_enforce = _throttling_state.update_snc_delay(
+          shard_delays.request, now);
     }
 
     // Sum up
-    clock::duration delay_enforce = clock::duration::zero();
-    if (hdr.key == fetch_api::key) {
-        auto fetch_enforced = _throttling_state.update_fetch_delay(
-          client_quota_delay.duration, now);
-        delay_enforce = std::max(delay_enforce, fetch_enforced);
-    } else if (hdr.key == produce_api::key) {
-        auto produce_enforced = _throttling_state.update_produce_delay(
-          client_quota_delay.duration, now);
-        delay_enforce = std::max(delay_enforce, produce_enforced);
-    }
-    if (_kafka_throughput_controlled_api_keys().at(hdr.key)) {
-        auto snc_enforced = _throttling_state.update_snc_delay(
-          shard_delays.request, now);
-        delay_enforce = std::max(delay_enforce, snc_enforced);
-    }
+    clock::duration delay_enforce = std::max(client_enforce, snc_enforce);
     const clock::duration delay_request = std::max(
       {shard_delays.request,
        client_quota_delay.duration,
        clock::duration::zero()});
-    if (
-      delay_enforce != clock::duration::zero()
-      || delay_request != clock::duration::zero()) {
+    if ((delay_enforce + delay_request) != clock::duration::zero()) {
         vlog(
           klog.trace,
           "[{}:{}] throttle request:{{snc:{}, client:{}}}, "
-          "enforce:{}, key:{}, request_size:{}",
+          "enforce:{{snc:{}, client:{}}}, key:{}, request_size:{}",
           _client_addr,
           client_port(),
           shard_delays.request,
           client_quota_delay.duration,
-          delay_enforce,
+          snc_enforce,
+          client_enforce,
           hdr.key,
           request_size);
     }
