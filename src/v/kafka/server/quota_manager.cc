@@ -15,7 +15,6 @@
 #include "container/fragmented_vector.h"
 #include "kafka/server/atomic_token_bucket.h"
 #include "kafka/server/logger.h"
-#include "resource_mgmt/rate.h"
 
 #include <seastar/core/future.hh>
 #include <seastar/core/map_reduce.hh>

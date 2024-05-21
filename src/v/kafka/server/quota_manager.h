@@ -15,7 +15,6 @@
 #include "config/property.h"
 #include "kafka/server/atomic_token_bucket.h"
 #include "kafka/server/token_bucket_rate_tracker.h"
-#include "resource_mgmt/rate.h"
 #include "ssx/sharded_ptr.h"
 #include "ssx/sharded_value.h"
 #include "utils/absl_sstring_hash.h"
