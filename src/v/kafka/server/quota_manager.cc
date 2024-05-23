@@ -34,7 +34,6 @@ using namespace std::chrono_literals;
 namespace kafka {
 
 using clock = quota_manager::clock;
-using throttle_delay = quota_manager::throttle_delay;
 
 quota_manager::quota_manager(client_quotas_t& client_quotas)
   : _default_num_windows(config::shard_local_cfg().default_num_windows.bind())
@@ -78,10 +77,10 @@ ss::future<> quota_manager::start() {
 /// It bumps the last_seen_ms field of client_quota for gc() tracking.
 /// It may return a std::nullopt in a rare case when there are concurrent
 /// updated to the map here and in gc().
-ss::future<
-  std::optional<quota_manager::value_node<quota_manager::client_quota>>>
-quota_manager::maybe_add_and_retrieve_quota(
-  std::optional<std::string_view> quota_id, clock::time_point now) {
+ss::future<clock::duration> quota_manager::maybe_add_and_retrieve_quota(
+  std::optional<std::string_view> quota_id,
+  clock::time_point now,
+  quota_mutation_callback_t cb) {
     // requests without a client id are grouped into an anonymous group that
     // shares a default quota. the anonymous group is keyed on empty string.
     auto qid = quota_id.value_or("");
@@ -89,13 +88,11 @@ quota_manager::maybe_add_and_retrieve_quota(
     vassert(_client_quotas, "_client_quotas should have been initialized");
 
     auto it = _client_quotas->find(qid);
-    auto inserted = false;
     if (it == _client_quotas->end()) {
         co_await container().invoke_on(
           _client_quotas.shard_id(),
           [qid, now](quota_manager& me) { return me.add_quota_id(qid, now); });
 
-        inserted = true;
         it = _client_quotas->find(qid);
         if (it == _client_quotas->end()) {
             // The newly inserted quota map entry should always be available
@@ -106,16 +103,14 @@ quota_manager::maybe_add_and_retrieve_quota(
             // quota, and by the time the handler gets here the inserted entry
             // is gone. In that case, we give up and don't throttle.
             vlog(klog.debug, "Failed to find quota id after insert...");
-            co_return std::nullopt;
+            co_return clock::duration::zero();
         }
-    }
-
-    // bump to prevent gc
-    if (!inserted) {
+    } else {
+        // bump to prevent gc
         it->second->last_seen_ms.local() = now;
     }
 
-    co_return it->second;
+    co_return cb(*it->second);
 }
 
 ss::future<>
@@ -135,7 +130,7 @@ quota_manager::add_quota_id(std::string_view qid, clock::time_point now) {
         auto replenish_threshold = static_cast<uint64_t>(
           _replenish_threshold().value_or(1));
 
-        auto new_value = make_value_node<client_quota>(
+        auto new_value = ss::make_lw_shared<client_quota>(
           ssx::sharded_value<clock::time_point>(now),
           std::nullopt,
           std::nullopt,
@@ -152,7 +147,7 @@ quota_manager::add_quota_id(std::string_view qid, clock::time_point now) {
               *fetch_rate, *fetch_rate, replenish_threshold, true);
         }
 
-        new_map.try_emplace(std::move(qid), std::move(new_value));
+        new_map.emplace(qid, std::move(new_value));
 
         return new_map;
     };
@@ -214,14 +209,14 @@ ss::future<std::chrono::milliseconds> quota_manager::record_partition_mutations(
     if (!_target_partition_mutation_quota()) {
         co_return 0ms;
     }
-    co_return co_await container().invoke_on(
+    auto delay = co_await container().invoke_on(
       quota_manager_shard, [client_id, mutations, now](quota_manager& qm) {
           return qm.do_record_partition_mutations(client_id, mutations, now);
       });
+    co_return std::chrono::duration_cast<std::chrono::milliseconds>(delay);
 }
 
-ss::future<std::chrono::milliseconds>
-quota_manager::do_record_partition_mutations(
+ss::future<clock::duration> quota_manager::do_record_partition_mutations(
   std::optional<std::string_view> client_id,
   uint32_t mutations,
   clock::time_point now) {
@@ -230,75 +225,70 @@ quota_manager::do_record_partition_mutations(
       "This method can only be executed from quota manager home shard");
 
     auto quota_id = get_client_quota_id(client_id, {});
-    auto cq = co_await maybe_add_and_retrieve_quota(quota_id, now);
-    if (!cq) {
-        co_return std::chrono::milliseconds::zero();
-    }
-    const auto units = cq.value()->pm_rate->record_and_measure(mutations, now);
-    auto delay_ms = 0ms;
-    if (units < 0) {
-        /// Throttle time is defined as -K * R, where K is the number of
-        /// tokens in the bucket and R is the avg rate. This only works when
-        /// the number of tokens are negative which is the case when the
-        /// rate limiter recommends throttling
-        const auto rate = (units * -1)
-                          * std::chrono::seconds(
-                            *_target_partition_mutation_quota());
-        delay_ms = std::chrono::duration_cast<std::chrono::milliseconds>(rate);
-        std::chrono::milliseconds max_delay_ms(_max_delay());
-        if (delay_ms > max_delay_ms) {
-            vlog(
-              klog.info,
-              "Found partition mutation rate for window of: {}. Client:{}, "
-              "Estimated backpressure delay of {}. Limiting to {} backpressure "
-              "delay",
-              rate,
-              quota_id,
-              delay_ms,
-              max_delay_ms);
-            delay_ms = max_delay_ms;
-        }
-    }
-    co_return delay_ms;
+    co_return co_await maybe_add_and_retrieve_quota(
+      quota_id, now, [this, quota_id, mutations, now](client_quota& cq) {
+          const auto units = cq.pm_rate->record_and_measure(mutations, now);
+          auto delay_ms = 0ms;
+          if (units < 0) {
+              /// Throttle time is defined as -K * R, where K is the number of
+              /// tokens in the bucket and R is the avg rate. This only works
+              /// when the number of tokens are negative which is the case when
+              /// the rate limiter recommends throttling
+              const auto rate = (units * -1)
+                                * std::chrono::seconds(
+                                  *_target_partition_mutation_quota());
+              delay_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                rate);
+              std::chrono::milliseconds max_delay_ms(_max_delay());
+              if (delay_ms > max_delay_ms) {
+                  vlog(
+                    klog.info,
+                    "Found partition mutation rate for window of: {}. "
+                    "Client:{}, Estimated backpressure delay of {}. Limiting "
+                    "to {} backpressure delay",
+                    rate,
+                    quota_id,
+                    delay_ms,
+                    max_delay_ms);
+                  delay_ms = max_delay_ms;
+              }
+          }
+          return delay_ms;
+      });
 }
 
-std::chrono::milliseconds quota_manager::cap_to_max_delay(
-  std::optional<std::string_view> quota_id,
-  std::chrono::milliseconds delay_ms) {
+clock::duration quota_manager::cap_to_max_delay(
+  std::optional<std::string_view> quota_id, clock::duration delay) {
     std::chrono::milliseconds max_delay_ms(_max_delay());
-    if (delay_ms > max_delay_ms) {
+    if (delay > max_delay_ms) {
         vlog(
           klog.info,
           "Client:{}, "
           "Estimated "
           "backpressure delay of {}. Limiting to {} backpressure delay",
           quota_id,
-          delay_ms,
+          std::chrono::duration_cast<std::chrono::milliseconds>(delay),
           max_delay_ms);
-        delay_ms = max_delay_ms;
+        delay = max_delay_ms;
     }
-    return delay_ms;
+    return delay;
 }
 
 // record a new observation and return <previous delay, new delay>
-ss::future<throttle_delay> quota_manager::record_produce_tp_and_throttle(
+ss::future<clock::duration> quota_manager::record_produce_tp_and_throttle(
   std::optional<std::string_view> client_id,
   uint64_t bytes,
   clock::time_point now) {
     auto quota_id = get_client_quota_id(
       client_id, _target_produce_tp_rate_per_client_group());
-    auto cq = co_await maybe_add_and_retrieve_quota(quota_id, now);
-
-    if (!cq.has_value() || !cq.value()->tp_produce_rate.has_value()) {
-        co_return throttle_delay{};
-    }
-
-    auto& produce_tracker = cq.value()->tp_produce_rate.value();
-    auto delay_ms
-      = produce_tracker.update_and_calculate_delay<std::chrono::milliseconds>(
-        now, bytes);
-    auto capped_delay_ms = cap_to_max_delay(quota_id, delay_ms);
-    co_return throttle_delay{.duration = capped_delay_ms};
+    co_return co_await maybe_add_and_retrieve_quota(
+      quota_id, now, [this, quota_id, now, bytes](client_quota& cq) {
+          auto& produce_tracker = cq.tp_produce_rate.value();
+          auto delay_ms
+            = produce_tracker.update_and_calculate_delay<clock::duration>(
+              now, bytes);
+          return cap_to_max_delay(quota_id, delay_ms);
+      });
 }
 
 ss::future<> quota_manager::record_fetch_tp(
@@ -307,30 +297,26 @@ ss::future<> quota_manager::record_fetch_tp(
   clock::time_point now) {
     auto quota_id = get_client_quota_id(
       client_id, _target_fetch_tp_rate_per_client_group());
-    auto cq = co_await maybe_add_and_retrieve_quota(quota_id, now);
-    if (!cq.has_value() || !cq.value()->tp_fetch_rate.has_value()) {
-        co_return;
-    }
-    auto& fetch_tracker = cq.value()->tp_fetch_rate.value();
-    fetch_tracker.record(bytes);
+    co_await maybe_add_and_retrieve_quota(
+      quota_id, now, [bytes](client_quota& cq) {
+          auto& fetch_tracker = cq.tp_fetch_rate.value();
+          fetch_tracker.record(bytes);
+          return clock::duration{};
+      });
 }
 
-ss::future<throttle_delay> quota_manager::throttle_fetch_tp(
+ss::future<clock::duration> quota_manager::throttle_fetch_tp(
   std::optional<std::string_view> client_id, clock::time_point now) {
     auto quota_id = get_client_quota_id(
       client_id, _target_fetch_tp_rate_per_client_group());
-    auto cq = co_await maybe_add_and_retrieve_quota(quota_id, now);
-
-    if (!cq.has_value() || !cq.value()->tp_fetch_rate.has_value()) {
-        co_return throttle_delay{};
-    }
-
-    auto& fetch_tracker = cq.value()->tp_fetch_rate.value();
-    auto delay_ms
-      = fetch_tracker.update_and_calculate_delay<std::chrono::milliseconds>(
-        now);
-    auto capped_delay_ms = cap_to_max_delay(quota_id, delay_ms);
-    co_return throttle_delay{.duration = capped_delay_ms};
+    co_return co_await maybe_add_and_retrieve_quota(
+      quota_id, now, [this, quota_id, now](client_quota& cq) {
+          auto& fetch_tracker = cq.tp_fetch_rate.value();
+          auto delay_ms
+            = fetch_tracker
+                .update_and_calculate_delay<std::chrono::milliseconds>(now);
+          return cap_to_max_delay(quota_id, delay_ms);
+      });
 }
 
 // erase inactive tracked quotas. windows are considered inactive if
@@ -399,12 +385,11 @@ ss::future<> quota_manager::do_gc(clock::time_point expire_threshold) {
     // because this should be rare and the client will be tracked correctly
     // again from when we next see it.
     co_await _client_quotas.update(
-      [expired_keys{std::move(expired_keys)}](
-        client_quotas_map_t new_map) -> ss::future<client_quotas_map_t> {
+      [expired_keys{std::move(expired_keys)}](client_quotas_map_t new_map) {
           for (auto& k : expired_keys) {
               new_map.erase(k);
           }
-          co_return new_map;
+          return new_map;
       });
 }
 
