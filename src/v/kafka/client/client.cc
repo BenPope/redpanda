@@ -27,6 +27,7 @@
 #include "model/fundamental.h"
 #include "model/metadata.h"
 #include "model/timeout_clock.h"
+#include "model/timestamp.h"
 #include "random/generators.h"
 #include "ssx/future-util.h"
 #include "utils/unresolved_address.h"
@@ -335,13 +336,13 @@ client::create_topic(kafka::creatable_topic req) {
 }
 
 ss::future<list_offsets_response>
-client::list_offsets(model::topic_partition tp) {
+client::list_offsets(model::topic_partition tp, model::timestamp ts) {
     return gated_retry_with_mitigation(
-      [this, tp{std::move(tp)}]() { return do_list_offsets(tp); });
+      [this, tp{std::move(tp)}, ts]() { return do_list_offsets(tp, ts); });
 }
 
 ss::future<list_offsets_response>
-client::do_list_offsets(model::topic_partition tp) {
+client::do_list_offsets(model::topic_partition tp, model::timestamp ts) {
     auto node_id = co_await _topic_cache.leader(tp);
     auto broker = co_await _brokers.find(node_id);
     chunked_vector<kafka::list_offset_topic> cv;
@@ -349,7 +350,9 @@ client::do_list_offsets(model::topic_partition tp) {
       .name{tp.topic},
       .partitions{
         {
-          {.partition_index{tp.partition}, .max_num_offsets = 1},
+          {.partition_index{tp.partition},
+           .timestamp = ts,
+           .max_num_offsets = 1},
         },
       },
     });

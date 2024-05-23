@@ -583,14 +583,25 @@ ss::future<> service::fetch_internal_topic() {
     // what our config calls for
 
     auto offset_res = co_await _client.local().list_offsets(
-      model::schema_registry_internal_tp);
+      model::schema_registry_internal_tp,
+      kafka::list_offsets_request::earliest_timestamp);
+    auto min_offset = offset_res.data.topics[0].partitions[0].offset;
+    offset_res = co_await _client.local().list_offsets(
+      model::schema_registry_internal_tp,
+      kafka::list_offsets_request::latest_timestamp);
     auto max_offset = offset_res.data.topics[0].partitions[0].offset;
-    vlog(plog.debug, "Schema registry: _schemas max_offset: {}", max_offset);
+    if (min_offset != model::offset{0}) {
+        vlog(
+          plog.warn, "Schema registry: fetching offsets: {}-{}", min_offset, max_offset);
+    } else {
+        vlog(
+          plog.info, "Schema registry: fetching offsets: {}-{}", min_offset, max_offset);
+    }
 
     co_await kafka::client::make_client_fetch_batch_reader(
       _client.local(),
       model::schema_registry_internal_tp,
-      model::offset{0},
+      min_offset,
       max_offset)
       .consume(consume_to_store{_store, writer()}, model::no_timeout);
 }

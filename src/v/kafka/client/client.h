@@ -71,7 +71,7 @@ constexpr auto default_external_mitigate = [](std::exception_ptr ex) {
     return ss::make_exception_future(ex);
 };
 
-}
+} // namespace impl
 
 class client {
 public:
@@ -120,7 +120,8 @@ public:
     ss::future<produce_response>
     produce_records(model::topic topic, std::vector<record_essence> batch);
 
-    ss::future<list_offsets_response> list_offsets(model::topic_partition tp);
+    ss::future<list_offsets_response>
+    list_offsets(model::topic_partition tp, model::timestamp ts = {});
 
     ss::future<fetch_response> fetch_partition(
       model::topic_partition tp,
@@ -173,7 +174,7 @@ public:
 
 private:
     ss::future<list_offsets_response>
-    do_list_offsets(model::topic_partition tp);
+    do_list_offsets(model::topic_partition tp, model::timestamp ts);
 
     /// \brief Connect and update metdata.
     ss::future<> do_connect(net::unresolved_address addr);
