@@ -98,19 +98,9 @@ public:
                ss::future<T>,
                ss::futurize_t<std::invoke_result_t<F, T>>>
     ss::future<> update(F&& update_func) {
-        assert_shard();
-        auto mu{co_await _mutex.get_units()};
-        if (_state.empty()) {
-            _state.resize(ss::smp::count);
-        }
-
-        auto new_value = local() ? T{*local()} : T{};
-        auto updated_new_value = co_await ss::futurize_invoke(
-          std::forward<F>(update_func), std::move(new_value));
-        auto new_ref = std::make_shared<T>(std::move(updated_new_value));
-        auto copy_to_deallocate_on_owner_shard = local();
-        co_await ss::smp::invoke_on_all(
-          [this, new_ref]() noexcept { local() = new_ref; });
+        co_return co_await reset(co_await ss::futurize_invoke(
+          std::forward<F>(update_func),
+          local() ? std::as_const(*local()) : T{}));
     }
 
     /// stop managing any object.
