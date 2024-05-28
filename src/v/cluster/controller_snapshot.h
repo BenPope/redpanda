@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "cluster/client_quota_serde.h"
 #include "cluster/cluster_recovery_state.h"
 #include "cluster/types.h"
 #include "container/chunked_hash_map.h"
