@@ -12,9 +12,6 @@
 #pragma once
 
 #include "cloud_storage/fwd.h"
-#include "cluster/client_quota_backend.h"
-#include "cluster/client_quota_frontend.h"
-#include "cluster/client_quota_store.h"
 #include "cluster/cloud_metadata/producer_id_recovery_manager.h"
 #include "cluster/controller_probe.h"
 #include "cluster/controller_stm.h"

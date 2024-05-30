@@ -82,6 +82,12 @@ class id_allocator_stm;
 class tm_stm;
 class rm_stm;
 
+namespace client_quota {
+class backend;
+class frontend;
+class store;
+} // namespace client_quota
+
 namespace tx {
 class producer_state_manager;
 class producer_state;

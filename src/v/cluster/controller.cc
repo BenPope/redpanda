@@ -11,6 +11,9 @@
 
 #include "base/likely.h"
 #include "cluster/bootstrap_backend.h"
+#include "cluster/client_quota_backend.h"
+#include "cluster/client_quota_frontend.h"
+#include "cluster/client_quota_store.h"
 #include "cluster/cloud_metadata/cluster_manifest.h"
 #include "cluster/cloud_metadata/cluster_recovery_backend.h"
 #include "cluster/cloud_metadata/error_outcome.h"

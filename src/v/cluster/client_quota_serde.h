@@ -19,9 +19,7 @@
 #include <iosfwd>
 #include <vector>
 
-namespace cluster {
-
-namespace client_quota {
+namespace cluster::client_quota {
 
 /// entity_key is used to key client quotas. It consists of multiple parts as a
 /// key can be a combination of key parts. Currently, only client id based and
@@ -146,11 +144,9 @@ struct entity_value
     std::optional<uint64_t> controller_mutation_rate;
 };
 
-} // namespace client_quota
-
-struct alter_quotas_delta_cmd_data
+struct alter_delta_cmd_data
   : serde::envelope<
-      alter_quotas_delta_cmd_data,
+      alter_delta_cmd_data,
       serde::version<0>,
       serde::compat_version<0>> {
     struct upsert_op
@@ -171,9 +167,9 @@ struct alter_quotas_delta_cmd_data
     std::vector<upsert_op> upsert;
     std::vector<remove_op> remove;
 
-    friend bool operator==(
-      const alter_quotas_delta_cmd_data&, const alter_quotas_delta_cmd_data&)
+    friend bool
+    operator==(const alter_delta_cmd_data&, const alter_delta_cmd_data&)
       = default;
 };
 
-} // namespace cluster
+} // namespace cluster::client_quota

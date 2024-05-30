@@ -14,9 +14,9 @@
 namespace cluster::client_quota {
 
 ss::future<std::error_code> frontend::alter_quotas(
-  alter_quotas_delta_cmd_data data, model::timeout_clock::time_point tout) {
+  alter_delta_cmd_data data, model::timeout_clock::time_point tout) {
     alter_quotas_delta_cmd cmd(0 /*unused*/, std::move(data));
-    co_return co_await replicate_and_wait(_stm, _as, std::move(cmd), tout);
+    return replicate_and_wait(_stm, _as, std::move(cmd), tout);
 }
 
 } // namespace cluster::client_quota

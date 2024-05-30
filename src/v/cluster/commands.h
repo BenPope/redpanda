@@ -431,7 +431,7 @@ using cluster_recovery_update_cmd = controller_command<
 
 using alter_quotas_delta_cmd = controller_command<
   int8_t, // unused
-  alter_quotas_delta_cmd_data,
+  client_quota::alter_delta_cmd_data,
   alter_quotas_delta_cmd_type,
   model::record_batch_type::client_quota>;
 

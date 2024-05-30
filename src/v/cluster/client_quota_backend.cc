@@ -9,15 +9,12 @@
 
 #include "cluster/client_quota_backend.h"
 
-#include "cluster/client_quota_serde.h"
-#include "cluster/client_quota_store.h"
+#include "client_quota_store.h"
 #include "cluster/commands.h"
 #include "cluster/controller_snapshot.h"
 
 #include <seastar/core/coroutine.hh>
 #include <seastar/util/variant_utils.hh>
-
-#include <optional>
 
 namespace cluster::client_quota {
 
