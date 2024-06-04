@@ -12,6 +12,7 @@
 #pragma once
 
 #include "base/seastarx.h"
+#include "cluster/client_quota_serde.h"
 #include "cluster/fwd.h"
 #include "config/client_group_byte_rate_quota.h"
 #include "config/property.h"
@@ -99,6 +100,8 @@ public:
 private:
     using quota_config
       = std::unordered_map<ss::sstring, config::client_group_quota>;
+    using entity_value_accessor = std::function<std::optional<uint64_t>(
+      const cluster::client_quota::entity_value&)>;
 
     tracker_key get_produce_key(std::optional<std::string_view> client_id);
     tracker_key get_fetch_key(std::optional<std::string_view> client_id);
@@ -113,6 +116,7 @@ private:
     get_client_target_partition_mutation_rate(const tracker_key& quota_id);
     std::optional<uint64_t> get_client_quota_value(
       const tracker_key& quota_id,
+      const entity_value_accessor& accessor,
       const std::unordered_map<ss::sstring, config::client_group_quota>&
         group_quota_config,
       std::optional<uint64_t> default_value_config);
