@@ -19,6 +19,7 @@
 #include "pandaproxy/schema_registry/error.h"
 #include "pandaproxy/schema_registry/errors.h"
 #include "pandaproxy/schema_registry/exceptions.h"
+#include "pandaproxy/schema_registry/json.h"
 #include "pandaproxy/schema_registry/protobuf.h"
 #include "pandaproxy/schema_registry/store.h"
 #include "pandaproxy/schema_registry/types.h"
@@ -85,7 +86,7 @@ sharded_store::make_canonical_schema(unparsed_schema schema) {
         co_return co_await make_canonical_protobuf_schema(
           *this, std::move(schema));
     case schema_type::json:
-        throw as_exception(invalid_schema_type(schema.type()));
+        co_return co_await make_canonical_json_schema(*this, std::move(schema));
     }
     __builtin_unreachable();
 }
