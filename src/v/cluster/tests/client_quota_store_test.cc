@@ -122,10 +122,7 @@ BOOST_AUTO_TEST_CASE(quota_store_range) {
     BOOST_CHECK_EQUAL(specific_client_quota[0].second, val1);
 
     auto group_quotas = st.range(
-      [](const std::pair<entity_key, entity_value>& kv) -> bool {
-          return store::prefix_group_filter(
-            kv, "franz-go-prefix--and-some-more");
-      });
+      store::prefix_group_filter("franz-go-prefix--and-some-more"));
     BOOST_CHECK_EQUAL(group_quotas.size(), 1);
     BOOST_CHECK_EQUAL(group_quotas[0].first, key3);
     BOOST_CHECK_EQUAL(group_quotas[0].second, val3);

@@ -69,21 +69,20 @@ public:
             });
       };
 
-    static constexpr auto prefix_group_filter =
-      [](
-        const std::pair<entity_key, entity_value>& kv,
-        std::string_view client_id) {
-          return absl::c_any_of(
-            kv.first.parts, [client_id](const entity_key::part& key_part) {
-                return ss::visit(
-                  key_part.part,
-                  [client_id](const entity_key::part::client_id_prefix_match&
-                                prefix_match) {
-                      return client_id.starts_with(prefix_match.value);
-                  },
-                  [](const auto&) { return false; });
-            });
-      };
+    static constexpr auto prefix_group_filter(std::string_view client_id) {
+        return [client_id](const std::pair<entity_key, entity_value>& kv) {
+            return absl::c_any_of(
+              kv.first.parts, [client_id](const entity_key::part& key_part) {
+                  return ss::visit(
+                    key_part.part,
+                    [client_id](const entity_key::part::client_id_prefix_match&
+                                  prefix_match) {
+                        return client_id.starts_with(prefix_match.value);
+                    },
+                    [](const auto&) { return false; });
+              });
+        };
+    }
 
     // TODO: provide an observer mechanism so that quota_manager can listen to
     // quota changes and update its state accordingly
