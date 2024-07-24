@@ -19,52 +19,52 @@
 
 namespace datalake {
 
-proto_to_arrow_converter::proto_to_arrow_converter(std::string schema) {
+proto_to_arrow_converter::proto_to_arrow_converter(std::string_view schema) {
     initialize_protobuf_schema(schema);
     if (!initialize_struct_converter()) {
         throw initialization_error("Could not initialize arrow arrays");
     }
 }
 arrow_converter_status
-proto_to_arrow_converter::add_message(const std::string& serialized_message) {
+proto_to_arrow_converter::add_message(std::string_view serialized_message) {
     std::unique_ptr<google::protobuf::Message> message = parse_message(
       serialized_message);
     if (message == nullptr) {
         return arrow_converter_status::parse_error;
     }
 
-    if (!_struct_converter->add_top_level_message(message.get()).ok()) {
+    if (!_struct_converter.add_top_level_message(message.get()).ok()) {
         return arrow_converter_status::internal_error;
     }
     return arrow_converter_status::ok;
 }
 arrow_converter_status proto_to_arrow_converter::finish_batch() {
-    if (!_struct_converter->finish_batch().ok()) {
+    if (!_struct_converter.finish_batch().ok()) {
         return arrow_converter_status::internal_error;
     }
     return arrow_converter_status::ok;
 }
 std::shared_ptr<arrow::Table> proto_to_arrow_converter::build_table() {
     auto table_result = arrow::Table::FromChunkedStructArray(
-      _struct_converter->finish());
+      _struct_converter.finish());
     if (table_result.ok()) {
-        return table_result.ValueUnsafe();
+        return std::move(table_result).ValueUnsafe();
     } else {
         return nullptr;
     }
 }
 std::vector<std::shared_ptr<arrow::Field>>
 proto_to_arrow_converter::build_field_vec() {
-    return _struct_converter->get_field_vector();
+    return _struct_converter.get_field_vector();
 }
 std::shared_ptr<arrow::Schema> proto_to_arrow_converter::build_schema() {
-    return arrow::schema(_struct_converter->get_field_vector());
+    return arrow::schema(_struct_converter.get_field_vector());
 }
 
 void proto_to_arrow_converter::initialize_protobuf_schema(
-  const std::string& schema) {
+  std::string_view schema) {
     google::protobuf::io::ArrayInputStream proto_input_stream(
-      schema.c_str(), schema.size());
+      schema.data(), static_cast<int>(schema.size()));
     google::protobuf::io::Tokenizer tokenizer(&proto_input_stream, nullptr);
 
     google::protobuf::compiler::Parser parser;
@@ -91,13 +91,12 @@ bool proto_to_arrow_converter::initialize_struct_converter() {
         return false;
     }
 
-    _struct_converter = std::make_unique<detail::proto_to_arrow_struct>(
-      message_desc);
+    _struct_converter = detail::proto_to_arrow_struct(message_desc);
 
     return true;
 }
 std::unique_ptr<google::protobuf::Message>
-proto_to_arrow_converter::parse_message(const std::string& message) {
+proto_to_arrow_converter::parse_message(std::string_view message) {
     // Get the message descriptor
     const google::protobuf::Descriptor* message_desc = message_descriptor();
     if (message_desc == nullptr) {
@@ -110,15 +109,17 @@ proto_to_arrow_converter::parse_message(const std::string& message) {
         return nullptr;
     }
 
-    google::protobuf::Message* mutable_msg = prototype_msg->New();
+    std::unique_ptr<google::protobuf::Message> mutable_msg{
+      prototype_msg->New()};
     if (mutable_msg == nullptr) {
         return nullptr;
     }
 
-    if (!mutable_msg->ParseFromString(message)) {
+    if (!mutable_msg->ParseFromArray(
+          message.data(), static_cast<int>(message.size()))) {
         return nullptr;
     }
-    return std::unique_ptr<google::protobuf::Message>(mutable_msg);
+    return mutable_msg;
 }
 
 const google::protobuf::Descriptor*

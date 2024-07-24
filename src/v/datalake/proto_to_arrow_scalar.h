@@ -22,7 +22,7 @@
 namespace datalake::detail {
 
 template<typename ArrowType>
-class proto_to_arrow_scalar : public proto_to_arrow_interface {
+class proto_to_arrow_scalar {
     using BuilderType = arrow::TypeTraits<ArrowType>::BuilderType;
 
 public:
@@ -30,7 +30,7 @@ public:
       : _builder(std::make_shared<BuilderType>()) {}
 
     arrow::Status
-    add_value(const google::protobuf::Message* msg, int field_idx) override {
+    add_value(const google::protobuf::Message* msg, int field_idx) {
         if (!_arrow_status.ok()) {
             return _arrow_status;
         }
@@ -38,33 +38,35 @@ public:
         return _arrow_status;
     }
 
-    arrow::Status finish_batch() override {
+    arrow::Status finish_batch() {
         if (!_arrow_status.ok()) {
             return _arrow_status;
         }
         auto builder_result = _builder->Finish();
         _arrow_status = builder_result.status();
-        std::shared_ptr<arrow::Array> array;
         if (!_arrow_status.ok()) {
             return _arrow_status;
         }
 
         // Safe because we validated the status after calling `Finish`
-        array = std::move(builder_result).ValueUnsafe();
-        _values.push_back(array);
+        _values.push_back(std::move(builder_result).ValueUnsafe());
         return _arrow_status;
     }
 
-    std::shared_ptr<arrow::Field> field(const std::string& name) override {
+    std::shared_ptr<arrow::Field> field(const std::string& name) {
         return arrow::field(
           name, arrow::TypeTraits<ArrowType>::type_singleton());
     }
 
-    std::shared_ptr<arrow::ArrayBuilder> builder() override { return _builder; }
+    std::shared_ptr<arrow::ArrayBuilder> builder() { return _builder; }
+
+    auto operator->() { return this; }
 
 private:
     void do_add(const google::protobuf::Message* msg, int field_idx);
 
+    arrow::Status _arrow_status;
+    arrow::ArrayVector _values;
     std::shared_ptr<BuilderType> _builder;
 };
 

@@ -9,6 +9,8 @@
  */
 #include "datalake/proto_to_arrow_struct.h"
 
+#include <seastar/util/variant_utils.hh>
+
 #include <fmt/format.h>
 
 arrow::Status datalake::detail::proto_to_arrow_struct::finish_batch() {
@@ -19,7 +21,6 @@ arrow::Status datalake::detail::proto_to_arrow_struct::finish_batch() {
       = _builder->Finish();
 
     _arrow_status = builder_result.status();
-    std::shared_ptr<arrow::Array> array;
     if (!_arrow_status.ok()) {
         return _arrow_status;
     }
@@ -35,8 +36,10 @@ arrow::Status datalake::detail::proto_to_arrow_struct::add_top_level_message(
         return _arrow_status;
     }
     for (size_t child_idx = 0; child_idx < _child_arrays.size(); child_idx++) {
-        _arrow_status = _child_arrays[child_idx]->add_value(
-          msg, int(child_idx));
+        _arrow_status = seastar::visit(
+          _child_arrays[child_idx], [msg, child_idx](auto& child) {
+              return child->add_value(msg, int(child_idx));
+          });
         if (!_arrow_status.ok()) {
             return _arrow_status;
         }
@@ -66,28 +69,28 @@ datalake::detail::proto_to_arrow_struct::proto_to_arrow_struct(
         auto desc = message_descriptor->field(field_idx);
         switch (desc->cpp_type()) {
         case pb::FieldDescriptor::CPPTYPE_INT32:
-            _child_arrays.push_back(
-              std::make_unique<proto_to_arrow_scalar<arrow::Int32Type>>());
+            _child_arrays.emplace_back(
+              proto_to_arrow_scalar<arrow::Int32Type>());
             break;
         case pb::FieldDescriptor::CPPTYPE_INT64:
-            _child_arrays.push_back(
-              std::make_unique<proto_to_arrow_scalar<arrow::Int64Type>>());
+            _child_arrays.emplace_back(
+              proto_to_arrow_scalar<arrow::Int64Type>());
             break;
         case pb::FieldDescriptor::CPPTYPE_BOOL:
-            _child_arrays.push_back(
-              std::make_unique<proto_to_arrow_scalar<arrow::BooleanType>>());
+            _child_arrays.emplace_back(
+              proto_to_arrow_scalar<arrow::BooleanType>());
             break;
         case pb::FieldDescriptor::CPPTYPE_FLOAT:
-            _child_arrays.push_back(
-              std::make_unique<proto_to_arrow_scalar<arrow::FloatType>>());
+            _child_arrays.emplace_back(
+              proto_to_arrow_scalar<arrow::FloatType>());
             break;
         case pb::FieldDescriptor::CPPTYPE_DOUBLE:
-            _child_arrays.push_back(
-              std::make_unique<proto_to_arrow_scalar<arrow::DoubleType>>());
+            _child_arrays.emplace_back(
+              proto_to_arrow_scalar<arrow::DoubleType>());
             break;
         case pb::FieldDescriptor::CPPTYPE_STRING:
-            _child_arrays.push_back(
-              std::make_unique<proto_to_arrow_scalar<arrow::StringType>>());
+            _child_arrays.emplace_back(
+              proto_to_arrow_scalar<arrow::StringType>());
             break;
         case pb::FieldDescriptor::CPPTYPE_MESSAGE: {
             auto field_message_descriptor = desc->message_type();
@@ -96,7 +99,7 @@ datalake::detail::proto_to_arrow_struct::proto_to_arrow_struct(
                   std::string("Can't find schema for nested type : ")
                   + desc->cpp_type_name());
             }
-            _child_arrays.push_back(std::make_unique<proto_to_arrow_struct>(
+            _child_arrays.emplace_back(std::make_unique<proto_to_arrow_struct>(
               field_message_descriptor));
         } break;
         default:
@@ -112,7 +115,10 @@ datalake::detail::proto_to_arrow_struct::proto_to_arrow_struct(
     for (int field_idx = 0; field_idx < message_descriptor->field_count();
          field_idx++) {
         auto field_desc = message_descriptor->field(field_idx);
-        _fields.push_back(_child_arrays[field_idx]->field(field_desc->name()));
+        _fields.push_back(
+          seastar::visit(_child_arrays[field_idx], [field_desc](auto& child) {
+              return child->field(field_desc->name());
+          }));
     }
     _arrow_data_type = arrow::struct_(_fields);
 
@@ -121,7 +127,8 @@ datalake::detail::proto_to_arrow_struct::proto_to_arrow_struct(
     child_builders.reserve(_child_arrays.size());
     // This could also be collapsed into the above loop
     for (auto& child : _child_arrays) {
-        child_builders.push_back(child->builder());
+        child_builders.push_back(
+          seastar::visit(child, [](auto& child) { return child->builder(); }));
     }
     _builder = std::make_shared<arrow::StructBuilder>(
       _arrow_data_type, arrow::default_memory_pool(), child_builders);

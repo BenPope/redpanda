@@ -58,10 +58,10 @@ message.
 */
 class proto_to_arrow_converter {
 public:
-    explicit proto_to_arrow_converter(std::string schema);
+    explicit proto_to_arrow_converter(std::string_view schema);
 
     [[nodiscard]] arrow_converter_status
-    add_message(const std::string& serialized_message);
+    add_message(std::string_view serialized_message);
 
     [[nodiscard]] arrow_converter_status finish_batch();
 
@@ -76,23 +76,23 @@ private:
     FRIEND_TEST(ArrowWriter, SimpleMessageTest);
     FRIEND_TEST(ArrowWriter, NestedMessageTest);
 
-    void initialize_protobuf_schema(const std::string& schema);
+    void initialize_protobuf_schema(std::string_view schema);
 
     bool initialize_struct_converter();
 
     /// Parse the message to a protobuf message.
     /// Return nullptr on error.
     std::unique_ptr<google::protobuf::Message>
-    parse_message(const std::string& message);
+    parse_message(std::string_view message);
     const google::protobuf::Descriptor* message_descriptor();
 
 private:
     google::protobuf::DescriptorPool _protobuf_descriptor_pool;
     google::protobuf::FileDescriptorProto _file_descriptor_proto;
     google::protobuf::DynamicMessageFactory _factory;
-    const google::protobuf::FileDescriptor* _file_desc;
+    const google::protobuf::FileDescriptor* _file_desc{nullptr};
 
-    std::unique_ptr<detail::proto_to_arrow_struct> _struct_converter;
+    detail::proto_to_arrow_struct _struct_converter;
     error_collector error_collector;
 };
 
