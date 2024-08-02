@@ -32,6 +32,7 @@
 #include <seastar/util/defer.hh>
 #include <seastar/util/variant_utils.hh>
 
+#include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 #include <absl/container/inlined_vector.h>
 #include <boost/graph/adjacency_list.hpp>
@@ -56,6 +57,13 @@
 
 namespace pandaproxy::schema_registry {
 
+namespace {
+
+using referenced_docs
+  = absl::flat_hash_map<ss::sstring, json::Document, sstring_hash, sstring_eq>;
+
+}
+
 struct json_schema_definition::impl {
     iobuf to_json() const {
         json::chunked_buffer buf;
@@ -67,14 +75,17 @@ struct json_schema_definition::impl {
     explicit impl(
       json::Document doc,
       std::string_view name,
-      canonical_schema_definition::references refs)
+      canonical_schema_definition::references refs,
+      referenced_docs docs)
       : doc{std::move(doc)}
       , name{name}
-      , refs(std::move(refs)) {}
+      , refs{std::move(refs)}
+      , docs{std::move(docs)} {}
 
     json::Document doc;
     ss::sstring name;
     canonical_schema_definition::references refs;
+    referenced_docs docs;
 };
 
 bool operator==(
@@ -119,6 +130,26 @@ ss::future<> check_references(sharded_store& store, canonical_schema schema) {
               }
           });
     }
+}
+
+ss::future<referenced_docs> get_referenced_docs(
+  sharded_store& store,
+  ss::sstring name,
+  canonical_schema schema,
+  referenced_docs refs) {
+    for (const auto& ref : schema.def().refs()) {
+        if (!refs.contains(ref.name)) {
+            auto ss = co_await store.get_subject_schema(
+              ref.sub, ref.version, include_deleted::no);
+            refs = co_await get_referenced_docs(
+              store, ref.name, std::move(ss.schema), std::move(refs));
+        }
+    }
+    json::Document doc;
+    json::chunked_input_stream is{std::move(schema).def().raw()()};
+    doc.ParseStream(is);
+    refs.emplace(std::move(name), std::move(doc));
+    co_return refs;
 }
 
 // this is the list of supported dialects
@@ -1557,14 +1588,21 @@ void sort(json::Value& val) {
 } // namespace
 
 ss::future<json_schema_definition>
-make_json_schema_definition(sharded_store&, canonical_schema schema) {
+make_json_schema_definition(sharded_store& store, canonical_schema schema) {
     auto doc
       = parse_json(schema.def().shared_raw()()).value(); // throws on error
-    std::string_view name = schema.sub()();
-    auto refs = std::move(schema).def().refs();
+
+    auto shared = schema.share();
+
+    auto [name, def] = std::move(schema).destructure();
+    auto [def1, type, refs] = std::move(def).destructure();
+
+    auto docs = co_await get_referenced_docs(
+      store, name(), std::move(shared), {});
+
     co_return json_schema_definition{
       ss::make_shared<json_schema_definition::impl>(
-        std::move(doc), name, std::move(refs))};
+        std::move(doc), name(), std::move(refs), std::move(docs))};
 }
 
 ss::future<canonical_schema> make_canonical_json_schema(
