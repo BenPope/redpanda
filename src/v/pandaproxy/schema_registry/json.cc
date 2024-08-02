@@ -212,7 +212,8 @@ struct pj {
 class schema_context {
 public:
     explicit schema_context(json_schema_definition::impl const& schema)
-      : _schema{schema} {}
+      : _base_uri(schema.name)
+      , _schema{schema} {}
 
     json::Document::ValueType const& resolve(std::string_view ref) const {
         // Internal reference
@@ -229,12 +230,31 @@ public:
               fmt::format("Reference not found: '{}'", ref)});
         }
 
+        // External reference
+        auto pos = ref.find('#');
+        auto _base_uri = ref.substr(0, pos);
+        auto fragment = std::string::npos ? "" : ref.substr(pos + 1);
+        auto const& doc = _base_uri == _schema.name
+                            ? _schema.doc
+                            : _schema.docs.at(_base_uri);
+        if (fragment.empty()) {
+            return doc;
+        }
+
+        json::Pointer ptr{
+          fragment.data() + 1,
+          fragment.length() - 1,
+        };
+        if (auto* p = ptr.Get(_schema.doc); p) {
+            return *p;
+        }
         throw as_exception(error_info{
           error_code::schema_invalid,
-          fmt::format("External references not supported: '{}'", ref)});
+          fmt::format("Reference not found: '{}'", ref)});
     }
 
 private:
+    std::string_view _base_uri;
     json_schema_definition::impl const& _schema;
 };
 
