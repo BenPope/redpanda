@@ -530,7 +530,7 @@ void application::initialize(
      * Disable the logger for protobuf; some interfaces don't allow a pluggable
      * error collector.
      */
-    google::protobuf::SetLogHandler(nullptr);
+    // google::protobuf::SetLogHandler(nullptr);
 
     /*
      * allocate per-core zstd decompression workspace and per-core

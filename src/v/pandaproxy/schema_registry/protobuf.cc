@@ -21,8 +21,10 @@
 #include "utils/base64.h"
 
 #include <seastar/core/coroutine.hh>
+#include <seastar/core/sstring.hh>
 
 #include <absl/container/flat_hash_set.h>
+#include <absl/strings/string_view.h>
 #include <boost/algorithm/string/trim.hpp>
 #include <confluent/meta.pb.h>
 #include <confluent/types/decimal.pb.h>
@@ -142,11 +144,13 @@ class io_error_collector final : public pb::io::ErrorCollector {
     };
 
 public:
-    void AddError(int line, int column, const std::string& message) final {
-        _errors.emplace_back(err{level::error, line, column, message});
+    void RecordError(int line, int column, absl::string_view message) final {
+        _errors.emplace_back(
+          err{level::error, line, column, ss::sstring{message}});
     }
-    void AddWarning(int line, int column, const std::string& message) final {
-        _errors.emplace_back(err{level::warn, line, column, message});
+    void RecordWarning(int line, int column, absl::string_view message) final {
+        _errors.emplace_back(
+          err{level::warn, line, column, ss::sstring{message}});
     }
 
     error_info error() const;
@@ -159,23 +163,33 @@ private:
 
 class dp_error_collector final : public pb::DescriptorPool::ErrorCollector {
 public:
-    void AddError(
-      const std::string& filename,
-      const std::string& element_name,
+    void RecordError(
+      absl::string_view filename,
+      absl::string_view element_name,
       const pb::Message* descriptor,
       ErrorLocation location,
-      const std::string& message) final {
+      absl::string_view message) final {
         _errors.emplace_back(err{
-          level::error, filename, element_name, descriptor, location, message});
+          level::error,
+          ss::sstring{filename},
+          ss::sstring{element_name},
+          descriptor,
+          location,
+          ss::sstring{message}});
     }
-    void AddWarning(
-      const std::string& filename,
-      const std::string& element_name,
+    void RecordWarning(
+      absl::string_view filename,
+      absl::string_view element_name,
       const pb::Message* descriptor,
       ErrorLocation location,
-      const std::string& message) final {
+      absl::string_view message) final {
         _errors.emplace_back(err{
-          level::warn, filename, element_name, descriptor, location, message});
+          level::warn,
+          ss::sstring{filename},
+          ss::sstring{element_name},
+          descriptor,
+          location,
+          ss::sstring{message}});
     }
 
     error_info error() const;
@@ -187,11 +201,11 @@ private:
     };
     struct err {
         level lvl;
-        std::string filename;
-        std::string element_name;
+        ss::sstring filename;
+        ss::sstring element_name;
         const pb::Message* descriptor;
         ErrorLocation location;
-        std::string message;
+        ss::sstring message;
     };
     friend struct fmt::formatter<err>;
 
@@ -242,7 +256,7 @@ public:
                 throw as_exception(error_collector.error());
             }
         }
-        _fdp.set_name(schema.sub()());
+        _fdp.set_name(absl::string_view{schema.sub()()});
         return _fdp;
     }
 
