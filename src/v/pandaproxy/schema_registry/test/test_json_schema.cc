@@ -1240,6 +1240,105 @@ static constexpr auto compatibility_test_cases = std::to_array<
 })",
     .reader_is_compatible_with_writer = true,
   },
+  // refs
+  {
+    .reader_schema = R"({"type": "string"})",
+    .writer_schema = R"({
+  "$ref": "#/definitions/a_ref",
+  "definitions": {
+    "a_ref": {
+      "type": "string"
+    }
+  }
+})",
+    .reader_is_compatible_with_writer = true,
+  },
+  {
+    .reader_schema = R"({
+  "$ref": "#/$defs/a_ref",
+  "$defs": {
+    "a_ref": {
+      "type": "string"
+    }
+  }
+})",
+    .writer_schema = R"({"type": "string"})",
+    .reader_is_compatible_with_writer = true,
+  },
+  {
+    .reader_schema = R"({
+  "$id": "https://example.com/schemas/node",
+  "$ref": "#/$defs/node",
+  "$defs": {
+    "node": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "next": {
+          "$ref": "https://example.com/schemas/node#/$defs/node"
+        }
+      }
+    }
+  }
+})",
+    .writer_schema = R"({
+  "$id": "https://example.com/schemas/node",
+  "$ref": "#/$defs/node",
+  "$defs": {
+    "node": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "next": {
+          "$ref": "#/$defs/node"
+        }
+      }
+    }
+  }
+})",
+    .reader_is_compatible_with_writer = true,
+  },
+  {
+    .reader_schema = R"({
+  "$id": "/schemas/node",
+  "$ref": "#/$defs/node",
+  "$defs": {
+    "node": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "next": {
+          "$ref": "/schemas/node#/$defs/node"
+        }
+      }
+    }
+  }
+})",
+    .writer_schema = R"({
+  "$id": "/schemas/node",
+  "$ref": "#/$defs/node",
+  "$defs": {
+    "node": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "next": {
+          "$ref": "#/$defs/node"
+        }
+      }
+    }
+  }
+})",
+    .reader_is_compatible_with_writer = true,
+  },
 });
 SEASTAR_THREAD_TEST_CASE(test_compatibility_check) {
     store_fixture f;
@@ -1253,6 +1352,7 @@ SEASTAR_THREAD_TEST_CASE(test_compatibility_check) {
           .get();
     };
     for (const auto& data : compatibility_test_cases) {
+        std::cout << std::endl;
         BOOST_TEST_CONTEXT(fmt::format(
           "reader: {}, writer: {}, is compatible: {}",
           data.reader_schema,

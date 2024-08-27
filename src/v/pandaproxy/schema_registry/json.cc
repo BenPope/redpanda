@@ -15,6 +15,7 @@
 #include "json/chunked_input_stream.h"
 #include "json/document.h"
 #include "json/ostreamwrapper.h"
+#include "json/pointer.h"
 #include "json/schema.h"
 #include "json/stringbuffer.h"
 #include "json/writer.h"
@@ -26,6 +27,7 @@
 
 #include <seastar/core/coroutine.hh>
 #include <seastar/core/shared_ptr.hh>
+#include <seastar/core/sstring.hh>
 #include <seastar/coroutine/as_future.hh>
 #include <seastar/coroutine/exception.hh>
 #include <seastar/util/defer.hh>
@@ -43,9 +45,11 @@
 #include <fmt/ranges.h>
 #include <jsoncons/basic_json.hpp>
 #include <jsoncons/json.hpp>
+#include <jsoncons/uri.hpp>
 #include <jsoncons_ext/jsonschema/evaluation_options.hpp>
 #include <jsoncons_ext/jsonschema/json_schema_factory.hpp>
 #include <jsoncons_ext/jsonschema/jsonschema.hpp>
+#include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 #include <re2/re2.h>
 
@@ -108,6 +112,12 @@ struct document_context {
     json_schema_dialect dialect;
     std::optional<jsoncons::uri> base_uri;
 };
+
+namespace is_superset_impl {
+
+json::Value::ConstObject get_true_schema();
+
+}
 
 } // namespace
 
@@ -202,8 +212,62 @@ public:
 
     json_schema_dialect dialect() const { return _schema.ctx.dialect; }
 
+    json::Document::ValueType const& resolve(std::string_view ref) const {
+        // Internal reference
+        fmt::print(
+          std::cout,
+          "base_uri: {}, resolving: {}",
+          _schema.ctx.base_uri.value_or(jsoncons::uri("")).string(),
+          ref);
+        auto flush = ss::defer([]() { std::cout << std::endl; });
+
+        std::error_code ec;
+        auto ref_uri = jsoncons::uri::parse(ref.data(), ec);
+        if (ec) {
+            throw as_exception(error_info{
+              error_code::schema_invalid,
+              fmt::format("Reference failed to parse: '{}'", ref)});
+        }
+
+        auto base_uri = _schema.ctx.base_uri.value_or(
+          jsoncons::uri::parse("", ec));
+        if (ec) {
+            throw as_exception(error_info{
+              error_code::schema_invalid,
+              fmt::format("Invalid base_uri: '{}'", base_uri.string())});
+        }
+        auto resolved = ref_uri.resolve(base_uri);
+        if (resolved.base() != base_uri.base()) {
+            throw as_exception(error_info{
+              error_code::schema_invalid,
+              fmt::format("External references not supported: '{}'", ref)});
+        }
+
+        if (!_resolved.emplace(resolved).second) {
+            fmt::print(
+              std::cout, ", resolved (as true): {}", resolved.string());
+            // prevent recursion
+            return is_superset_impl::get_true_schema();
+        }
+        fmt::print(std::cout, ", resolved: {}", resolved.string());
+
+        // Internal reference
+        auto const& doc = _schema.ctx.doc;
+
+        auto const& frag = resolved.fragment();
+        json::Pointer ptr{frag.data(), frag.length()};
+
+        if (auto* p = ptr.Get(doc); p) {
+            return *p;
+        }
+        throw as_exception(error_info{
+          error_code::schema_invalid,
+          fmt::format("Reference not found: '{}'", ref)});
+    }
+
 private:
     json_schema_definition::impl const& _schema;
+    mutable std::set<jsoncons::uri> _resolved;
 };
 
 struct context {
@@ -538,10 +602,13 @@ json_type_list normalized_type(json::Value const& v) {
     return ret;
 }
 
-// helper to convert a boolean to a schema
+// helper to convert a boolean to a schema, and traverse references
 json::Value::ConstObject
-get_schema(schema_context const&, json::Value const& v) {
+get_schema(schema_context const& ctx, json::Value const& v) {
     if (v.IsObject()) {
+        if (auto it = v.FindMember("$ref"); it != v.MemberEnd()) {
+            return ctx.resolve(as_string_view(it->value)).GetObject();
+        }
         return v.GetObject();
     }
 
@@ -1574,25 +1641,6 @@ bool is_superset(
 
     if (!is_positive_combinator_superset(ctx, older, newer)) {
         return false;
-    }
-
-    for (auto not_yet_handled_keyword : {
-           // draft 6 unhandled keywords:
-           "$ref",
-         }) {
-        if (
-          newer.HasMember(not_yet_handled_keyword)
-          || older.HasMember(not_yet_handled_keyword)) {
-            // these keyword are not yet handled, their presence might change
-            // the result of this function
-            throw as_exception(invalid_schema(fmt::format(
-              "{} not fully implemented yet. unsupported keyword: {}, input: "
-              "older: '{}', newer: '{}'",
-              __FUNCTION__,
-              not_yet_handled_keyword,
-              pj{older},
-              pj{newer})));
-        }
     }
 
     // no rule in newer is less strict than older, older is superset of newer
