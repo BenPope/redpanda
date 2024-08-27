@@ -106,6 +106,7 @@ constexpr std::optional<json_schema_dialect> from_uri(std::string_view uri) {
 struct document_context {
     json::Document doc;
     json_schema_dialect dialect;
+    std::optional<jsoncons::uri> base_uri;
 };
 
 } // namespace
@@ -118,16 +119,11 @@ struct json_schema_definition::impl {
         return std::move(buf).as_iobuf();
     }
 
-    impl(
-      document_context ctx,
-      std::string_view name,
-      canonical_schema_definition::references refs)
+    impl(document_context ctx, canonical_schema_definition::references refs)
       : ctx{std::move(ctx)}
-      , name{name}
       , refs(std::move(refs)) {}
 
     document_context ctx;
-    ss::sstring name;
     canonical_schema_definition::references refs;
 };
 
@@ -154,7 +150,9 @@ json_schema_definition::refs() const {
     return _impl->refs;
 }
 
-ss::sstring json_schema_definition::name() const { return {_impl->name}; };
+ss::sstring json_schema_definition::name() const {
+    return {_impl->ctx.base_uri->string()};
+};
 
 std::optional<ss::sstring> json_schema_definition::title() const {
     if (!_impl->ctx.doc.IsObject()) {
@@ -357,7 +355,25 @@ result<document_context> parse_json(iobuf buf) {
         return validation_res.as_failure();
     }
 
-    return {std::move(schema), validation_res.assume_value()};
+    std::optional<jsoncons::uri> base_uri;
+    if (schema.IsObject()) {
+        auto id_field = validation_res.value() == json_schema_dialect::draft4
+                          ? "id"
+                          : "$id";
+        if (auto it = schema.FindMember(id_field); it != schema.MemberEnd()) {
+            if (it->value.IsString()) {
+                std::error_code ec;
+                std::string uri{as_string_view(it->value)};
+                jsoncons::uri::parse(uri, ec);
+                if (!ec) {
+                    base_uri.emplace(std::move(uri));
+                }
+            }
+        }
+    }
+
+    return {
+      std::move(schema), validation_res.assume_value(), std::move(base_uri)};
 }
 
 /// is_superset section
@@ -1612,11 +1628,11 @@ ss::future<json_schema_definition>
 make_json_schema_definition(sharded_store&, canonical_schema schema) {
     auto doc
       = parse_json(schema.def().shared_raw()()).value(); // throws on error
-    std::string_view name = schema.sub()();
+    doc.base_uri = doc.base_uri.value_or(jsoncons::uri(schema.sub()()));
     auto refs = std::move(schema).def().refs();
     co_return json_schema_definition{
       ss::make_shared<json_schema_definition::impl>(
-        std::move(doc), name, std::move(refs))};
+        std::move(doc), std::move(refs))};
 }
 
 ss::future<canonical_schema> make_canonical_json_schema(
