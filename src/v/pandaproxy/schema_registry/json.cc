@@ -602,14 +602,65 @@ json_type_list normalized_type(json::Value const& v) {
     return ret;
 }
 
+bool is_unsupported_ref(
+  schema_context const& ctx, const json::Document::ConstObject& obj) {
+    using namespace std::string_view_literals;
+    bool should_combine = ctx.dialect() > json_schema_dialect::draft7;
+    if (!should_combine) {
+        return false;
+    }
+    return absl::c_any_of(obj, [](const auto& m) {
+        constexpr std::array disallowed_siblings{
+          "default"sv,
+          "if"sv,
+          "then"sv,
+          "else"sv,
+          "type"sv,
+          "enum"sv,
+          "pattern"sv,
+          "minLength"sv,
+          "maxLength"sv
+          "minimum"sv,
+          "maximum"sv,
+          "exclusiveMinimum"sv,
+          "exclusiveMaximum"sv,
+          "minItems"sv,
+          "maxItems"sv,
+          "uniqueItems"sv,
+          "minProperties"sv,
+          "maxProperties"sv,
+          "required"sv,
+          "properties"sv,
+          "patternProperties"sv,
+          "additionalProperties"sv};
+        return absl::c_any_of(disallowed_siblings, [&m](std::string_view n) {
+            return as_string_view(m.name) == n;
+        });
+    });
+}
+
 // helper to convert a boolean to a schema, and traverse references
 json::Value::ConstObject
 get_schema(schema_context const& ctx, json::Value const& v) {
     if (v.IsObject()) {
-        if (auto it = v.FindMember("$ref"); it != v.MemberEnd()) {
+        auto obj = v.GetObject();
+        if (auto it = obj.FindMember("$ref"); it != obj.MemberEnd()) {
+            if (!it->value.IsString()) {
+                throw as_exception(error_info{
+                  error_code::schema_invalid,
+                  fmt::format("$ref must be a string: '{}'", pj{it->value})});
+            }
+            if (is_unsupported_ref(ctx, obj)) {
+                throw as_exception(error_info{
+                  error_code::schema_invalid,
+                  fmt::format(
+                    "Combining schemas through references is not currently "
+                    "supported: '{}'",
+                    pj{v})});
+            }
             return ctx.resolve(as_string_view(it->value)).GetObject();
         }
-        return v.GetObject();
+        return obj;
     }
 
     if (v.IsBool()) {
