@@ -251,7 +251,78 @@ const auto referencer_wrong_sub = pps::unparsed_schema{
       .sub{"wrong_sub"},
       .version = pps::schema_version{1}}}}};
 
+const auto address_no_id = pps::unparsed_schema{
+  pps::subject{"/schemas/address-value"},
+  pps::unparsed_schema_definition{
+    R"({
+  "type": "object",
+  "properties": {
+    "first_name": { "type": "string" },
+    "last_name": { "type": "string" },
+    "shipping_address": { "$ref": "/schemas/address" },
+    "billing_address": { "$ref": "/schemas/address" }
+  },
+  "required": ["first_name", "last_name", "shipping_address", "billing_address"]
+})",
+    pps::schema_type::json,
+    {}}};
+
+const auto address = [](std::optional<ss::sstring> id = std::nullopt) {
+    return pps::unparsed_schema{
+      pps::subject{"/schemas/address-value"},
+      pps::unparsed_schema_definition{
+        ss::sstring("{")
+          + (id ? ssx::sformat(R"("$id": "{}",)", *id) : ss::sstring{}) + R"(
+  "type": "object",
+  "properties": {
+    "first_name": { "type": "string" },
+    "last_name": { "type": "string" },
+    "shipping_address": { "$ref": "/schemas/address" },
+    "billing_address": { "$ref": "/schemas/address" }
+  },
+  "required": ["first_name", "last_name", "shipping_address", "billing_address"]
+})",
+        pps::schema_type::json,
+        {}}};
+};
+
+const auto customer = [](std::optional<ss::sstring> id = std::nullopt) {
+    return pps::unparsed_schema{
+      pps::subject{"/schemas/customer"},
+      pps::unparsed_schema_definition{
+        ss::sstring("{")
+          + (id ? ssx::sformat(R"("$id": "{}",)", *id) : ss::sstring{}) + R"(
+  "type": "object",
+  "properties": {
+    "first_name": { "type": "string" },
+    "last_name": { "type": "string" },
+    "shipping_address": { "$ref": "/schemas/address" },
+    "billing_address": { "$ref": "/schemas/address" }
+  },
+  "required": ["first_name", "last_name", "shipping_address", "billing_address"]
+})",
+        pps::schema_type::json,
+        {pps::schema_reference{
+          .name = "/schemas/address",
+          .sub{"/schemas/address-value"},
+          .version = pps::schema_version{1}}}}};
+};
+
+struct address_schemas_config {
+    ss::sstring id;
+    ss::sstring ref_id;
+    pps::subject sub;
+};
+
+std::array<test_references_data::data, 2>
+make_customer_schemas(pps::subject()) {
+    return {};
+}
 const std::array test_reference_cases = {
+  test_references_data{{{{address(), {}}, {customer(), {}}}}},
+  test_references_data{
+    {{{address("http::example.com/schemas/address"), {}},
+      {customer("http::example.com/schemas/customer"), {}}}}},
   // Referece correct subject
   test_references_data{{{{referenced.share(), {}}, {referencer.share(), {}}}}},
   // Reference wrong subject

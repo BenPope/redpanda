@@ -257,6 +257,8 @@ public:
               error_code::schema_invalid,
               fmt::format("Reference failed to parse: '{}'", ref)});
         }
+        auto ref_base = ref_uri.base().string();
+        // if (ref_uri.base().string())
 
         auto base_uri = _schema.ctx.base_uri.value_or(
           jsoncons::uri::parse("", ec));
