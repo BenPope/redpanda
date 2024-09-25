@@ -299,12 +299,34 @@ service::rpk_debug_bundle_status() {
       .cerr = _rpk_process->_cerr.copy()};
 }
 
-ss::future<result<std::filesystem::path>> service::rpk_debug_bundle_path() {
+ss::future<result<std::filesystem::path>>
+service::rpk_debug_bundle_path(job_id_t job_id) {
     if (ss::this_shard_id() != service_shard) {
         co_return co_await container().invoke_on(
-          service_shard, [](service& s) { return s.rpk_debug_bundle_path(); });
+          service_shard,
+          [job_id](service& s) { return s.rpk_debug_bundle_path(job_id); });
     }
-    co_return error_info(error_code::debug_bundle_process_never_started);
+    auto status = process_status();
+    if (!status.has_value()) {
+        co_return error_info(error_code::debug_bundle_process_never_started);
+    }
+    if (status == debug_bundle_status::running) {
+        co_return error_info(error_code::debug_bundle_process_running);
+    }
+    if (status == debug_bundle_status::error) {
+        co_return error_info(error_code::process_failed);
+    }
+    if (job_id != _rpk_process->_job_id) {
+        co_return error_info(error_code::job_id_not_recognized);
+    }
+    if (!co_await ss::file_exists(_rpk_process->_output_file_path.native())) {
+        co_return error_info(
+          error_code::internal_error,
+          fmt::format(
+            "Debug bundle file {} not found",
+            _rpk_process->_output_file_path.native()));
+    }
+    co_return _rpk_process->_output_file_path;
 }
 
 ss::future<result<void>> service::delete_rpk_debug_bundle() {
