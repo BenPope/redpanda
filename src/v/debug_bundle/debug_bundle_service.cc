@@ -29,6 +29,7 @@
 #include <fmt/format.h>
 
 #include <optional>
+#include <string_view>
 
 using namespace std::chrono_literals;
 
@@ -52,6 +53,7 @@ constexpr std::string_view partition_variable = "--partition";
 constexpr std::string_view tls_enabled_variable = "-Xtls.enabled";
 constexpr std::string_view tls_insecure_skip_verify_variable
   = "-Xtls.insecure_skip_verify";
+constexpr std::string_view k8s_namespace_variable = "--namespace";
 
 bool contains_sensitive_info(const ss::sstring& arg) {
     if (arg.find(password_variable) != ss::sstring::npos) {
@@ -69,6 +71,12 @@ void print_arguments(const std::vector<ss::sstring>& args) {
 std::filesystem::path form_debug_bundle_file_path(
   const std::filesystem::path& base_path, job_id_t job_id) {
     return base_path / fmt::format("{}.zip", job_id);
+}
+
+bool is_valid_k8s_namespace(std::string_view ns) {
+    constexpr auto max_ns_length = 253;
+    return !ns.empty() && ns.size() <= max_ns_length
+           && ns.find_first_not_of("abcdefghijklmnopqrstuvwxyz-") == ns.npos;
 }
 } // namespace
 
@@ -204,7 +212,11 @@ ss::future<result<void>> service::initiate_rpk_debug_bundle_collection(
         }
     }
 
-    auto args = build_rpk_arguments(job_id, std::move(params));
+    auto args_res = build_rpk_arguments(job_id, std::move(params));
+    if (!args_res.has_value()) {
+        co_return args_res.assume_error();
+    }
+    auto args = std::move(args_res.assume_value());
     if (lg.is_enabled(ss::log_level::debug)) {
         print_arguments(args);
     }
@@ -319,7 +331,7 @@ ss::future<result<void>> service::delete_rpk_debug_bundle() {
     co_return error_info(error_code::debug_bundle_process_never_started);
 }
 
-std::vector<ss::sstring>
+result<std::vector<ss::sstring>>
 service::build_rpk_arguments(job_id_t job_id, debug_bundle_parameters params) {
     std::vector<ss::sstring> rv{
       _rpk_path_binding().native(), "debug", "bundle"};
@@ -380,6 +392,14 @@ service::build_rpk_arguments(job_id_t job_id, debug_bundle_parameters params) {
           "{}={}",
           tls_insecure_skip_verify_variable,
           *params.tls_insecure_skip_verify));
+    }
+    if (params.k8s_namespace.has_value()) {
+        if (!is_valid_k8s_namespace(params.k8s_namespace.value()())) {
+            return error_info(
+              error_code::invalid_parameters, "Invalid k8s namespace name");
+        }
+        rv.emplace_back(k8s_namespace_variable);
+        rv.emplace_back(*params.k8s_namespace);
     }
 
     return rv;
