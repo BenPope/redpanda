@@ -46,6 +46,15 @@
     },
     "partition": {
       "type": "string"
+    },
+    "tls_enabled": {
+      "type": "boolean"
+    },
+    "tls_insecure_skip_verify": {
+      "type": "boolean"
+    },
+    "namespace": {
+      "type": "string"
     }
   }
 },
