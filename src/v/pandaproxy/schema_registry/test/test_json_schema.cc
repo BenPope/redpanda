@@ -1584,6 +1584,33 @@ static const auto compatibility_test_cases = std::to_array<compatibility_test_ca
 })",
     .compat_result = {{"#/properties/a/exclusiveMinimum", incompat_t::exclusive_minimum_added}},
   },
+  {
+// simple recursive ref
+    .reader_schema = R"(
+{
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "children": {
+      "type": "array",
+      "items": { "$ref": "#" }
+    }
+  }
+}
+)",
+    .writer_schema = R"(
+{
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "children": {
+      "type": "array",
+      "items": { "$ref": "#" }
+    }
+  }
+})",
+    .compat_result = {},
+  },
 {
 // simple ref in bundled schema compatible
     .reader_schema = R"(
