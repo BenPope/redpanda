@@ -1407,7 +1407,7 @@ static const auto compatibility_test_cases = std::to_array<compatibility_test_ca
   },
   /* internal refs checks section */
   {
-// simple ref
+// simple fragment ref
     .reader_schema = R"(
 {
   "type": "object",
@@ -1436,7 +1436,7 @@ static const auto compatibility_test_cases = std::to_array<compatibility_test_ca
     .compat_result = {},
   },
   {
-// simple ref incompatible
+// simple fragment ref incompatible
     .reader_schema = R"(
 {
   "type": "object",
@@ -1449,6 +1449,126 @@ static const auto compatibility_test_cases = std::to_array<compatibility_test_ca
   "properties": {
     "a": {
       "$ref": "#/$defs/positive_num"
+    }
+  }
+})",
+    .writer_schema = R"(
+{
+  "type": "object",
+  "properties": {
+    "a": {
+      "type": "number",
+      "exclusiveMaximum": 0
+    }
+  }
+})",
+    .compat_result = {{"#/properties/a/exclusiveMinimum", incompat_t::exclusive_minimum_added}},
+  },
+  {
+// simple full relative ref
+.reader_schema = R"(
+{
+  "type": "object",
+  "$id": "https://example.com/schemas/positive_num",
+  "$defs": {
+    "positive_num": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    }
+  },
+  "properties": {
+    "a": {
+      "$ref": "/schemas/positive_num#/$defs/positive_num"
+    }
+  }
+})",
+    .writer_schema = R"(
+{
+  "type": "object",
+  "properties": {
+    "a": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    }
+  }
+})",
+    .compat_result = {},
+  },
+  {
+// simple full relative ref incompatible
+    .reader_schema = R"(
+{
+  "type": "object",
+  "$id": "https://example.com/schemas/positive_num",
+  "$defs": {
+    "positive_num": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    }
+  },
+  "properties": {
+    "a": {
+      "$ref": "/schemas/positive_num#/$defs/positive_num"
+    }
+  }
+})",
+    .writer_schema = R"(
+{
+  "type": "object",
+  "properties": {
+    "a": {
+      "type": "number",
+      "exclusiveMaximum": 0
+    }
+  }
+})",
+    .compat_result = {{"#/properties/a/exclusiveMinimum", incompat_t::exclusive_minimum_added}},
+  },
+  {
+// simple partial relative ref
+.reader_schema = R"(
+{
+  "type": "object",
+  "$id": "https://example.com/schemas/positive_num",
+  "$defs": {
+    "positive_num": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    }
+  },
+  "properties": {
+    "a": {
+      "$ref": "positive_num#/$defs/positive_num"
+    }
+  }
+})",
+    .writer_schema = R"(
+{
+  "type": "object",
+  "properties": {
+    "a": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    }
+  }
+})",
+    .compat_result = {},
+  },
+  {
+// simple partial relative ref incompatible
+    .reader_schema = R"(
+{
+  "type": "object",
+  "$id": "https://example.com/schemas/positive_num",
+  "$defs": {
+    "positive_num": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    }
+  },
+  "properties": {
+    "a": {
+      "$ref": "positive_num#/$defs/positive_num"
     }
   }
 })",
