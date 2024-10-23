@@ -457,6 +457,7 @@ FIXTURE_TEST(unlicensed_rejected, create_topic_fixture) {
     auto si_props = {
       ss::sstring{kafka::topic_property_remote_read},
       ss::sstring{kafka::topic_property_remote_write},
+      ss::sstring{kafka::topic_property_recovery},
     };
     for (const auto& prop : si_props) {
         auto topic = make_topic(
