@@ -7,9 +7,12 @@
 // the Business Source License, use of this software will be governed
 // by the Apache License, Version 2.0
 
+#include "cluster/cloud_metadata/tests/cluster_metadata_utils.h"
 #include "cluster/config_frontend.h"
 #include "config/configuration.h"
 #include "container/fragmented_vector.h"
+#include "errc.h"
+#include "feature_manager.h"
 #include "kafka/protocol/alter_configs.h"
 #include "kafka/protocol/create_topics.h"
 #include "kafka/protocol/describe_configs.h"
@@ -20,6 +23,7 @@
 #include "kafka/protocol/schemata/describe_configs_request.h"
 #include "kafka/protocol/schemata/describe_configs_response.h"
 #include "kafka/protocol/schemata/incremental_alter_configs_request.h"
+#include "kafka/protocol/types.h"
 #include "kafka/server/handlers/topics/types.h"
 #include "kafka/server/rm_group_frontend.h"
 #include "model/fundamental.h"
@@ -44,6 +48,12 @@ inline ss::logger test_log("test"); // NOLINT
 class alter_config_test_fixture : public redpanda_thread_fixture {
 public:
     alter_config_test_fixture() { wait_for_controller_leadership().get(); }
+
+    void revoke_license() {
+        app.controller->get_feature_table()
+          .invoke_on_all([](auto& ft) { return ft.revoke_license(); })
+          .get();
+    }
 
     void create_topic(
       model::topic name,
@@ -1213,4 +1223,77 @@ FIXTURE_TEST(
       test_tp, "redpanda.remote.write", "true", describe_resp);
     assert_property_value(
       test_tp, "redpanda.remote.read", "true", describe_resp);
+}
+
+FIXTURE_TEST(
+  test_unlicensed_shadow_indexing_alter_configs, alter_config_test_fixture) {
+    revoke_license();
+    model::topic test_tp{"topic-1"};
+    create_topic(test_tp, 6);
+    using map_t = absl::flat_hash_map<ss::sstring, ss::sstring>;
+    std::vector<std::pair<map_t, kafka::error_code>> test_cases;
+
+    const auto si_props = {
+      ss::sstring{kafka::topic_property_remote_read},
+      ss::sstring{kafka::topic_property_remote_write},
+      ss::sstring{kafka::topic_property_remote_delete}};
+
+    constexpr auto success = kafka::error_code::none;
+    constexpr auto failure = kafka::error_code::unknown_server_error;
+    for (const auto& prop : si_props) {
+        test_cases.emplace_back(map_t{{prop, "false"}}, success);
+        test_cases.emplace_back(map_t{{prop, "true"}}, failure);
+    }
+
+    for (const auto& test_case : test_cases) {
+        auto resp = alter_configs(
+          make_alter_topic_config_resource_cv(test_tp, test_case.first));
+
+        BOOST_REQUIRE_EQUAL(resp.data.responses.size(), 1);
+        BOOST_REQUIRE_EQUAL(
+          resp.data.responses[0].error_code, test_case.second);
+
+        auto describe_resp = describe_configs(test_tp);
+        auto prop = test_case.first.begin()->first;
+        assert_property_value(test_tp, prop, "false", describe_resp);
+    }
+}
+
+FIXTURE_TEST(
+  test_unlicensed_shadow_indexing_incremental_alter_configs,
+  alter_config_test_fixture) {
+    revoke_license();
+    model::topic test_tp{"topic-1"};
+    create_topic(test_tp, 6);
+    using map_t = absl::flat_hash_map<
+      ss::sstring,
+      std::pair<std::optional<ss::sstring>, kafka::config_resource_operation>>;
+    std::vector<std::pair<map_t, kafka::error_code>> test_cases;
+
+    const auto si_props = {
+      ss::sstring{kafka::topic_property_remote_read},
+      ss::sstring{kafka::topic_property_remote_write},
+      ss::sstring{kafka::topic_property_remote_delete}};
+
+    constexpr auto success = kafka::error_code::none;
+    constexpr auto failure = kafka::error_code::unknown_server_error;
+    using op = kafka::config_resource_operation;
+    for (const auto& prop : si_props) {
+        test_cases.emplace_back(map_t{{prop, {"false", op::set}}}, success);
+        test_cases.emplace_back(map_t{{prop, {"true", op::set}}}, failure);
+    }
+
+    for (const auto& test_case : test_cases) {
+        auto resp = incremental_alter_configs(
+          make_incremental_alter_topic_config_resource_cv(
+            test_tp, test_case.first));
+
+        BOOST_REQUIRE_EQUAL(resp.data.responses.size(), 1);
+        BOOST_REQUIRE_EQUAL(
+          resp.data.responses[0].error_code, test_case.second);
+
+        auto describe_resp = describe_configs(test_tp);
+        auto prop = test_case.first.begin()->first;
+        assert_property_value(test_tp, prop, "false", describe_resp);
+    }
 }

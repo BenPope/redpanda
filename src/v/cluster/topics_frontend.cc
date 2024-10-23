@@ -224,6 +224,24 @@ cluster::errc map_errc(std::error_code ec) {
     return errc::replication_error;
 }
 
+namespace {
+bool has_enterprise(const topic_properties_update& update) {
+    constexpr auto is_true = [](const auto& v) { return v == true; };
+    constexpr auto is_not_disabled = [](const auto& v) {
+        return v != model::shadow_indexing_mode::disabled;
+    };
+    constexpr auto becomes_enterprise = [](const auto& v, auto pred) {
+        return v.op == incremental_update_operation::set && pred(v.value);
+    };
+    const auto& props = update.properties;
+    return becomes_enterprise(props.remote_read, is_true)
+           || becomes_enterprise(props.remote_write, is_true)
+           || becomes_enterprise(props.remote_delete, is_true)
+           || becomes_enterprise(props.get_shadow_indexing(), is_not_disabled);
+}
+
+} // namespace
+
 ss::future<std::vector<topic_result>> topics_frontend::update_topic_properties(
   topic_properties_update_vector updates,
   model::timeout_clock::time_point timeout) {
@@ -248,6 +266,12 @@ ss::future<std::vector<topic_result>> topics_frontend::update_topic_properties(
 
     // current node is a leader, just replicate
     if (cluster_leader == _self) {
+        if (std::ranges::any_of(updates, &has_enterprise)) {
+            if (_features.local().should_sanction()) {
+                co_return make_error_topic_results(
+                  updates, errc::feature_disabled);
+            }
+        }
         // replicate empty batch to make sure leader local state is up to date.
         auto result = co_await stm_linearizable_barrier(timeout);
         if (!result) {
