@@ -7,7 +7,9 @@
 // the Business Source License, use of this software will be governed
 // by the Apache License, Version 2.0
 
+#include "cluster/cloud_metadata/tests/cluster_metadata_utils.h"
 #include "container/fragmented_vector.h"
+#include "feature_manager.h"
 #include "kafka/protocol/create_topics.h"
 #include "kafka/protocol/metadata.h"
 #include "kafka/server/handlers/configs/config_response_utils.h"
@@ -26,6 +28,12 @@
 class create_topic_fixture : public redpanda_thread_fixture {
 public:
     create_topic_fixture() { wait_for_controller_leadership().get(); }
+
+    void revoke_license() {
+        app.controller->get_feature_table()
+          .invoke_on_all([](auto& ft) { return ft.revoke_license(); })
+          .get();
+    }
 
     kafka::create_topics_request make_req(
       chunked_vector<kafka::creatable_topic> topics,
@@ -442,4 +450,28 @@ FIXTURE_TEST(case_insensitive_boolean_property, create_topic_fixture) {
 
     BOOST_CHECK_EQUAL(resp.data.topics[0].error_code, kafka::error_code::none);
     BOOST_CHECK_EQUAL(resp.data.topics[0].name, "topic1");
+}
+
+FIXTURE_TEST(unlicensed_rejected, create_topic_fixture) {
+    revoke_license();
+    auto si_props = {
+      ss::sstring{kafka::topic_property_remote_read},
+      ss::sstring{kafka::topic_property_remote_write},
+    };
+    for (const auto& prop : si_props) {
+        auto topic = make_topic(
+          ssx::sformat("topic_{}", prop),
+          std::nullopt,
+          std::nullopt,
+          std::map<ss::sstring, ss::sstring>{{prop, "true"}});
+
+        auto client = make_kafka_client().get();
+        client.connect().get();
+        auto resp
+          = client.dispatch(make_req({topic}), kafka::api_version(5)).get();
+
+        BOOST_CHECK_EQUAL(
+          resp.data.topics[0].error_code,
+          kafka::error_code::unknown_server_error);
+    }
 }

@@ -142,9 +142,17 @@ ss::future<std::vector<topic_result>> topics_frontend::create_topics(
          * (ntp_config::default_remote_delete) on the construction of
          * topic_properties(), so there is no need to overwrite it here.
          */
-        if (!tp.cfg.properties.shadow_indexing.has_value()) {
-            tp.cfg.properties.shadow_indexing
-              = _metadata_cache.get_default_shadow_indexing_mode();
+        auto& si = tp.cfg.properties.shadow_indexing;
+        if (!si.has_value()) {
+            si = _metadata_cache.get_default_shadow_indexing_mode();
+        }
+        if (si != model::shadow_indexing_mode::disabled) {
+            if (_features.local().should_sanction()) {
+                // TODO (ben): probably best to partition the requests and only
+                // fail the topics that have SI enabled
+                return ss::make_ready_future<std::vector<topic_result>>(
+                  make_error_topic_results(topics, errc::feature_disabled));
+            }
         }
     }
 
