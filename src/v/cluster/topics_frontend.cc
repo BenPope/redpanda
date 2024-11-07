@@ -415,7 +415,7 @@ static allocation_request make_allocation_request(
     return req;
 }
 
-errc topics_frontend::validate_topic_configuration(
+error_info topics_frontend::validate_topic_configuration(
   const custom_assignable_topic_configuration& assignable_config) {
     if (!validate_topic_name(assignable_config.cfg.tp_ns)) {
         return errc::invalid_topic_name;
@@ -462,11 +462,10 @@ errc topics_frontend::validate_topic_configuration(
       _features.local().should_sanction()
       && is_user_topic(assignable_config.cfg.tp_ns)) {
         if (auto f = get_enterprise_features(assignable_config); !f.empty()) {
-            vlog(
-              clusterlog.warn,
-              "An enterprise license is required to enable {}.",
-              f);
-            return errc::topic_invalid_config;
+            auto msg = ssx::sformat(
+              "An enterprise license is required to enable {}.", f);
+            vlog(clusterlog.warn, "{}", msg);
+            return {errc::topic_invalid_config, std::move(msg)};
         }
     }
 
@@ -503,7 +502,7 @@ ss::future<topic_result> topics_frontend::do_create_topic(
 
     auto validation_err = validate_topic_configuration(assignable_config);
 
-    if (validation_err != errc::success) {
+    if (validation_err.code() != errc::success) {
         co_return topic_result(assignable_config.cfg.tp_ns, validation_err);
     }
 

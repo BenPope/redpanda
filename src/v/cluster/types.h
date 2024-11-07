@@ -942,20 +942,45 @@ struct topic_lifecycle_transition
 using topic_configuration_assignment
   = configuration_with_assignment<topic_configuration>;
 
+class error_info {
+public:
+    error_info(errc ec)
+      : _ec(ec) {}
+
+    error_info(errc ec, ss::sstring msg)
+      : _ec(ec)
+      , _msg{std::move(msg)} {}
+
+    errc code() const { return _ec; }
+
+    ss::sstring message() const {
+        return _msg.value_or(make_error_code(_ec).message());
+    }
+
+private:
+    errc _ec;
+    std::optional<ss::sstring> _msg{};
+};
+
 struct topic_result
   : serde::envelope<topic_result, serde::version<0>, serde::compat_version<0>> {
     topic_result() noexcept = default;
     explicit topic_result(model::topic_namespace t, errc ec = errc::success)
       : tp_ns(std::move(t))
       , ec(ec) {}
+    topic_result(model::topic_namespace t, const error_info& ei)
+      : tp_ns(std::move(t))
+      , ec(ei.code())
+      , error_message{ei.message()} {}
     model::topic_namespace tp_ns;
-    errc ec;
+    errc ec{errc::success};
+    std::optional<ss::sstring> error_message;
 
     friend bool operator==(const topic_result&, const topic_result&) = default;
 
     friend std::ostream& operator<<(std::ostream& o, const topic_result& r);
 
-    auto serde_fields() { return std::tie(tp_ns, ec); }
+    auto serde_fields() { return std::tie(tp_ns, ec, error_message); }
 };
 
 struct create_topics_request
