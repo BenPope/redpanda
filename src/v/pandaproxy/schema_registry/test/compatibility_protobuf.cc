@@ -784,6 +784,37 @@ message HasMap {
 )"));
 }
 
+SEASTAR_THREAD_TEST_CASE(test_protobuf_normalize_group) {
+    auto schema = R"(syntax = "proto2";
+message SearchResponse {
+  repeated group Result = 1 {
+    optional string title = 2;
+    optional string url = 1;
+    repeated string snippets = 3;
+  }
+})";
+
+    BOOST_CHECK_EQUAL(
+      sanitize(schema, pps::normalize::no, pps::protobuf_renderer_v2::yes),
+      (R"(syntax = "proto2";
+message SearchResponse {
+  repeated group Result = 1 {
+    optional string title = 2;
+    optional string url = 1;
+    repeated string snippets = 3;
+  }
+})"));
+    BOOST_CHECK_EQUAL(
+      normalize(schema, pps::protobuf_renderer_v2::yes), (R"(syntax = "proto2";
+message SearchResponse {
+  repeated group Result = 1 {
+    optional string url = 1;
+    optional string title = 2;
+    repeated string snippets = 3;
+  }
+})"));
+}
+
 SEASTAR_THREAD_TEST_CASE(test_protobuf_normalize) {
     auto schema = R"(
 syntax = "proto3";
