@@ -870,6 +870,55 @@ message SearchResponse {
 )"));
 }
 
+SEASTAR_THREAD_TEST_CASE(test_protobuf_normalize_extend_field) {
+    auto schema = R"(syntax = "proto3";
+import "google/protobuf/descriptor.proto";
+
+message Properties {
+  extend google.protobuf.FieldOptions {
+    Definition definition = 1026;
+  }
+  optional string foo = 1 [(definition) = FOO];
+}
+
+enum Definition {
+  FOO = 0;
+})";
+
+    BOOST_CHECK_EQUAL(
+      sanitize(schema, pps::normalize::no, pps::protobuf_renderer_v2::yes),
+      (R"(syntax = "proto3";
+
+import "google/protobuf/descriptor.proto";
+
+message Properties {
+  optional string foo = 1 [(definition) = FOO];
+  extend google.protobuf.FieldOptions {
+    Definition definition = 1026;
+  }
+}
+enum Definition {
+  FOO = 0;
+}
+
+)"));
+    BOOST_CHECK_EQUAL(
+      normalize(schema, pps::protobuf_renderer_v2::yes), (R"(syntax = "proto3";
+import "google/protobuf/descriptor.proto";
+
+message Properties {
+  optional string foo = 1 [(definition) = FOO];
+  extend google.protobuf.FieldOptions {
+    Definition definition = 1026;
+  }
+}
+enum Definition {
+  FOO = 0;
+}
+
+)"));
+}
+
 SEASTAR_THREAD_TEST_CASE(test_protobuf_synthetic_oneof) {
     auto schema = R"(syntax = "proto3";
 package foo;
