@@ -14,6 +14,7 @@
 #include "base/vlog.h"
 #include "bytes/streambuf.h"
 #include "kafka/protocol/errors.h"
+#include "pandaproxy/json/iobuf.h"
 #include "pandaproxy/logger.h"
 #include "pandaproxy/schema_registry/compatibility.h"
 #include "pandaproxy/schema_registry/errors.h"
@@ -529,14 +530,24 @@ struct protobuf_schema_definition::impl {
           "{}\n{}\n\n{}\n\n{}\n", header, package, imports, footer);
     }
 
-    canonical_schema_definition::raw_string raw() const {
-        return canonical_schema_definition::raw_string{debug_string()};
+    canonical_schema_definition::raw_string raw(schema_format format) const {
+        switch (format) {
+        case schema_format::proto_serialized: {
+            iobuf_ostream proto_buf;
+            fdp.SerializeToOstream(&proto_buf.ostream());
+            // TODO::BP: Remove this linearization
+            return canonical_schema_definition::raw_string{
+              iobuf_to_base64(std::move(proto_buf).buf())};
+        }
+        default:
+            return canonical_schema_definition::raw_string{debug_string()};
+        }
     }
 };
 
 canonical_schema_definition::raw_string
-protobuf_schema_definition::raw() const {
-    return _impl->raw();
+protobuf_schema_definition::raw(schema_format format) const {
+    return _impl->raw(format);
 }
 
 ::result<ss::sstring, kafka::error_code>

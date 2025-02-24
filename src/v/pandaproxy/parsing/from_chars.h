@@ -52,10 +52,13 @@ public:
       = std::is_constructible_v<type, std::string_view>;
     static constexpr bool is_constructible_from_sstring
       = std::is_constructible_v<type, ss::sstring>;
+    static constexpr bool is_enum = std::is_enum_v<type>;
+    ;
 
     static_assert(
       is_optional || is_named_type || is_duration || is_arithmetic || is_ss_bool
-        || is_constructible_from_string_view || is_constructible_from_sstring,
+        || is_constructible_from_string_view || is_constructible_from_sstring
+        || is_enum,
       "from_chars not defined for T");
 
     result_type operator()(std::string_view in) noexcept {
@@ -84,6 +87,11 @@ public:
             return type(boost::iequals(in, "true") || in == "1");
         } else if constexpr (is_arithmetic) {
             return do_from_chars(in);
+        } else if constexpr (is_enum) {
+            auto v = from_string_view<type>(in);
+            if (v) {
+                return *v;
+            }
         }
         return std::errc::invalid_argument;
     }

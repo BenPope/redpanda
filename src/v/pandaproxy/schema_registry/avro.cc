@@ -11,6 +11,7 @@
 
 #include "pandaproxy/schema_registry/avro.h"
 
+#include "base/vassert.h"
 #include "bytes/streambuf.h"
 #include "json/allocator.h"
 #include "json/chunked_input_stream.h"
@@ -518,7 +519,9 @@ std::ostream& operator<<(std::ostream& os, const avro_schema_definition& def) {
     return os;
 }
 
-canonical_schema_definition::raw_string avro_schema_definition::raw() const {
+canonical_schema_definition::raw_string
+avro_schema_definition::raw(schema_format format) const {
+    vassert(format == schema_format::default_, "Unsupported format");
     iobuf_ostream os;
     _impl.toJson(os.ostream());
     return canonical_schema_definition::raw_string{

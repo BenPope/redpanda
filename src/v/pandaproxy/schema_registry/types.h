@@ -25,6 +25,7 @@
 #include <avro/ValidSchema.hh>
 
 #include <iosfwd>
+#include <istream>
 #include <type_traits>
 
 namespace pandaproxy::schema_registry {
@@ -89,6 +90,51 @@ from_string_view<schema_type>(std::string_view sv) {
 }
 
 std::ostream& operator<<(std::ostream& os, const schema_type& v);
+
+enum class schema_format {
+    default_ = 0,
+    avro_resolved,
+    proto_ignore_extensions,
+    proto_serialized,
+};
+
+constexpr std::string_view to_string_view(schema_format e) {
+    switch (e) {
+    case schema_format::default_:
+        return "";
+    case schema_format::avro_resolved:
+        return "resolved";
+    case schema_format::proto_ignore_extensions:
+        return "ignore_extensions";
+    case schema_format::proto_serialized:
+        return "serialized";
+    }
+    return "{invalid}";
+}
+
+template<>
+constexpr std::optional<schema_format>
+from_string_view<schema_format>(std::string_view sv) {
+    return string_switch<std::optional<schema_format>>(sv)
+      .match(to_string_view(schema_format::default_), schema_format::default_)
+      // TODO BP: Support other formats
+      .match(
+        to_string_view(schema_format::proto_serialized),
+        schema_format::proto_serialized)
+      .default_match(std::nullopt);
+}
+
+inline std::istream& operator>>(std::istream& is, schema_format& v) {
+    std::string token;
+    is >> token;
+    auto res = from_string_view<schema_format>(token);
+    if (!res) {
+        is.setstate(std::ios_base::failbit);
+        return is;
+    }
+    v = *res;
+    return is;
+}
 
 ///\brief A subject is the name under which a schema is registered.
 ///
@@ -213,7 +259,8 @@ public:
     explicit avro_schema_definition(
       avro::ValidSchema vs, canonical_schema_definition::references refs);
 
-    canonical_schema_definition::raw_string raw() const;
+    canonical_schema_definition::raw_string
+    raw(schema_format format = schema_format::default_) const;
     const canonical_schema_definition::references& refs() const {
         return _refs;
     };
@@ -249,7 +296,8 @@ public:
       : _impl{std::move(p)}
       , _refs(std::move(refs)) {}
 
-    canonical_schema_definition::raw_string raw() const;
+    canonical_schema_definition::raw_string
+    raw(schema_format format = schema_format::default_) const;
     const canonical_schema_definition::references& refs() const {
         return _refs;
     };
@@ -285,7 +333,8 @@ public:
     explicit json_schema_definition(pimpl p)
       : _impl{std::move(p)} {}
 
-    canonical_schema_definition::raw_string raw() const;
+    canonical_schema_definition::raw_string
+    raw(schema_format format = schema_format::default_) const;
     const canonical_schema_definition::references& refs() const;
 
     const impl& operator()() const { return *_impl; }
@@ -351,9 +400,10 @@ public:
         return visit([](const auto& def) { return def.type(); });
     }
 
-    unparsed_schema_definition::raw_string raw() const& {
-        return visit([](auto&& def) {
-            return unparsed_schema_definition::raw_string{def.raw()()};
+    unparsed_schema_definition::raw_string
+    raw(schema_format format = schema_format::default_) const& {
+        return visit([format](auto&& def) {
+            return unparsed_schema_definition::raw_string{def.raw(format)()};
         });
     }
 

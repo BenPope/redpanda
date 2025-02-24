@@ -28,6 +28,7 @@
 #include <seastar/core/coroutine.hh>
 #include <seastar/core/future.hh>
 #include <seastar/core/sstring.hh>
+#include <seastar/http/exception.hh>
 
 #include <limits>
 
@@ -36,6 +37,21 @@ namespace ppj = pandaproxy::json;
 namespace pandaproxy::schema_registry {
 
 using server = ctx_server<service>;
+
+namespace {
+
+ss::future<canonical_schema_definition> get_schema_definition(
+  const server::request_t& rq,
+  schema_format format,
+  canonical_schema_definition def) {
+    if (format == schema_format::default_) {
+        co_return def;
+    }
+    auto valid = co_await rq.service().schema_store().make_valid_schema(
+      canonical_schema{subject{}, std::move(def)});
+    co_return canonical_schema_definition{valid.raw(format), valid.type()};
+}
+} // namespace
 
 void parse_accept_header(const server::request_t& rq, server::reply_t& rp) {
     static const std::vector<ppj::serialization_format> headers{
@@ -302,6 +318,9 @@ ss::future<server::reply_t>
 get_schemas_ids_id(server::request_t rq, server::reply_t rp) {
     parse_accept_header(rq, rp);
     auto id = parse::request_param<schema_id>(*rq.req, "id");
+    auto format = parse::query_param<std::optional<schema_format>>(
+                    *rq.req, "format")
+                    .value_or(schema_format::default_);
     rq.req.reset();
 
     auto def = co_await get_or_load(rq, [&rq, id]() {
@@ -409,6 +428,9 @@ post_subject(server::request_t rq, server::reply_t rp) {
         .value_or(include_deleted::no)};
     auto norm{parse::query_param<std::optional<normalize>>(*rq.req, "normalize")
                 .value_or(normalize::no)};
+    auto format = parse::query_param<std::optional<schema_format>>(
+                    *rq.req, "format")
+                    .value_or(schema_format::default_);
     vlog(
       plog.debug,
       "post_subject subject='{}', normalize='{}', deleted='{}'",
@@ -455,6 +477,9 @@ post_subject_versions(server::request_t rq, server::reply_t rp) {
     auto sub = parse::request_param<subject>(*rq.req, "subject");
     auto norm{parse::query_param<std::optional<normalize>>(*rq.req, "normalize")
                 .value_or(normalize::no)};
+    // Why does this exist, there is no schema output???
+    // auto format = parse::query_param<std::optional<schema_format>>(*rq.req,
+    // "format");
     vlog(
       plog.debug,
       "post_subject_versions subject='{}', normalize='{}'",
@@ -511,6 +536,9 @@ ss::future<ctx_server<service>::reply_t> get_subject_versions_version(
     auto inc_del{
       parse::query_param<std::optional<include_deleted>>(*rq.req, "deleted")
         .value_or(include_deleted::no)};
+    auto format = parse::query_param<std::optional<schema_format>>(
+                    *rq.req, "format")
+                    .value_or(schema_format::default_);
     rq.req.reset();
 
     co_await rq.service().writer().read_sync();

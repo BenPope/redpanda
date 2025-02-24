@@ -202,7 +202,8 @@ std::ostream& operator<<(std::ostream& os, const json_schema_definition& def) {
     return os;
 }
 
-canonical_schema_definition::raw_string json_schema_definition::raw() const {
+canonical_schema_definition::raw_string
+json_schema_definition::raw(schema_format) const {
     return canonical_schema_definition::raw_string{_impl->to_json()};
 }
 
