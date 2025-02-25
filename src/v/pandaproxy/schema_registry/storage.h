@@ -1518,7 +1518,8 @@ struct consume_to_store {
                   std::move(val->schema),
                   val->id,
                   val->version,
-                  val->deleted);
+                  val->deleted,
+                  defer_validation::yes);
             }
         } catch (const exception& e) {
             vlog(plog.debug, "Error replaying: {}: {}", key, e.what());

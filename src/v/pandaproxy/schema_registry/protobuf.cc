@@ -17,6 +17,7 @@
 #include "pandaproxy/logger.h"
 #include "pandaproxy/schema_registry/compatibility.h"
 #include "pandaproxy/schema_registry/errors.h"
+#include "pandaproxy/schema_registry/schema_getter.h"
 #include "pandaproxy/schema_registry/sharded_store.h"
 #include "pandaproxy/schema_registry/types.h"
 #include "ssx/sformat.h"
@@ -432,18 +433,22 @@ ss::future<pb::FileDescriptorProto> build_file_with_refs(
   pb::DescriptorPool& dp,
   schema_getter& store,
   canonical_schema schema,
-  normalize norm) {
-    for (const auto& ref : schema.def().refs()) {
-        if (dp.FindFileByName(ref.name)) {
-            continue;
+  normalize norm,
+  defer_validation defer) {
+    if (!defer) {
+        for (const auto& ref : schema.def().refs()) {
+            if (dp.FindFileByName(ref.name)) {
+                continue;
+            }
+            auto dep = co_await store.get_subject_schema(
+              ref.sub, ref.version, include_deleted::no);
+            co_await build_file_with_refs(
+              dp,
+              store,
+              canonical_schema{subject{ref.name}, std::move(dep.schema).def()},
+              normalize::no,
+              defer);
         }
-        auto dep = co_await store.get_subject_schema(
-          ref.sub, ref.version, include_deleted::no);
-        co_await build_file_with_refs(
-          dp,
-          store,
-          canonical_schema{subject{ref.name}, std::move(dep.schema).def()},
-          normalize::no);
     }
 
     parser p;
@@ -462,10 +467,11 @@ ss::future<pb::FileDescriptorProto> import_schema(
   pb::DescriptorPool& dp,
   schema_getter& store,
   canonical_schema schema,
-  normalize norm) {
+  normalize norm,
+  defer_validation defer) {
     try {
         co_return co_await build_file_with_refs(
-          dp, store, schema.share(), norm);
+          dp, store, schema.share(), norm, defer);
     } catch (const exception& e) {
         vlog(
           plog.warn, "Failed to decode schema {}: {}", schema.sub(), e.what());
@@ -587,16 +593,24 @@ operator<<(std::ostream& os, const protobuf_schema_definition& def) {
 }
 
 ss::future<protobuf_schema_definition> make_protobuf_schema_definition(
-  schema_getter& store, canonical_schema schema, normalize norm) {
+  schema_getter& store,
+  canonical_schema schema,
+  normalize norm,
+  defer_validation defer) {
     auto refs = schema.def().refs();
     auto impl = ss::make_shared<protobuf_schema_definition::impl>();
+    impl->_dp.AllowUnknownDependencies();
     auto v2_renderer = protobuf_renderer_v2::no;
     if (auto* s = dynamic_cast<const sharded_store*>(&store); s != nullptr) {
         v2_renderer = s->protobuf_v2_renderer();
     }
     // v2_renderer is the feature flag in case this breaks somebodies workflow.
     impl->fdp = co_await import_schema(
-      impl->_dp, store, std::move(schema), normalize(norm && v2_renderer));
+      impl->_dp,
+      store,
+      std::move(schema),
+      normalize(norm && v2_renderer),
+      defer);
 
     if (norm) {
         std::sort(refs.begin(), refs.end());
@@ -608,14 +622,20 @@ ss::future<protobuf_schema_definition> make_protobuf_schema_definition(
 }
 
 ss::future<canonical_schema_definition> validate_protobuf_schema(
-  sharded_store& store, canonical_schema schema, normalize norm) {
+  sharded_store& store,
+  canonical_schema schema,
+  normalize norm,
+  defer_validation defer) {
     auto res = co_await make_protobuf_schema_definition(
-      store, std::move(schema), norm);
+      store, std::move(schema), norm, defer);
     co_return canonical_schema_definition{std::move(res)};
 }
 
 ss::future<canonical_schema> make_canonical_protobuf_schema(
-  sharded_store& store, unparsed_schema schema, normalize norm) {
+  sharded_store& store,
+  unparsed_schema schema,
+  normalize norm,
+  defer_validation defer) {
     auto [sub, unparsed] = std::move(schema).destructure();
     auto [def, type, refs] = std::move(unparsed).destructure();
     canonical_schema temp{
@@ -626,7 +646,7 @@ ss::future<canonical_schema> make_canonical_protobuf_schema(
 
     co_return canonical_schema{
       std::move(sub),
-      co_await validate_protobuf_schema(store, std::move(temp), norm)};
+      co_await validate_protobuf_schema(store, std::move(temp), norm, defer)};
 }
 
 namespace {

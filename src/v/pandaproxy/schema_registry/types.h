@@ -36,6 +36,7 @@ using is_deleted = ss::bool_class<struct is_deleted_tag>;
 using default_to_global = ss::bool_class<struct default_to_global_tag>;
 using force = ss::bool_class<struct force_tag>;
 using normalize = ss::bool_class<struct normalize_tag>;
+using defer_validation = ss::bool_class<struct defer_validation_tag>;
 using verbose = ss::bool_class<struct verbose_tag>;
 using protobuf_renderer_v2 = ss::bool_class<struct protobuf_renderer_v2_tag>;
 

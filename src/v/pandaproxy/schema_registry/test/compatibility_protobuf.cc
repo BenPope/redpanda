@@ -156,8 +156,15 @@ SEASTAR_THREAD_TEST_CASE(test_protobuf_imported_not_referenced) {
     auto valid_simple = pps::make_protobuf_schema_definition(
                           store.store, schema1.share())
                           .get();
+    BOOST_REQUIRE_NO_THROW(
+      pps::make_protobuf_schema_definition(store.store, schema2.share()).get());
     BOOST_REQUIRE_EXCEPTION(
-      pps::make_protobuf_schema_definition(store.store, schema2.share()).get(),
+      store.store
+        .get_subject_schema(
+          pps::subject{"imported"},
+          pps::schema_version{1},
+          pps::include_deleted::no)
+        .get(),
       pps::exception,
       [](const pps::exception& ex) {
           return ex.code() == pps::error_code::schema_invalid;

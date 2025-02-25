@@ -34,7 +34,9 @@ public:
 
     ///\brief Make the canonical form of the schema
     ss::future<canonical_schema> make_canonical_schema(
-      unparsed_schema schema, normalize norm = normalize::no);
+      unparsed_schema schema,
+      normalize norm = normalize::no,
+      defer_validation defer = defer_validation::no);
 
     ///\brief Check the schema parses with the native format
     ss::future<void> validate_schema(canonical_schema schema);
@@ -67,7 +69,8 @@ public:
       unparsed_schema schema,
       schema_id id,
       schema_version version,
-      is_deleted deleted);
+      is_deleted deleted,
+      defer_validation defer = defer_validation::no);
 
     ss::future<bool> has_schema(schema_id id);
     ss::future<subject_schema> has_schema(
