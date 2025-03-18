@@ -332,16 +332,8 @@ ss::future<subject_schema> sharded_store::has_schema(
     std::optional<subject_schema> sub_schema;
     for (auto ver : versions) {
         try {
-            auto res = co_await get_subject_schema(schema.sub(), ver, inc_del);
-            res.schema = co_await make_canonical_schema(
-              unparsed_schema{
-                res.schema.sub(),
-                unparsed_schema_definition{
-                  unparsed_schema_definition::raw_string{
-                    res.schema.def().raw()().copy()},
-                  res.schema.def().type(),
-                  res.schema.def().refs()}},
-              norm);
+            auto res = co_await get_subject_schema(
+              schema.sub(), ver, inc_del, norm);
             if (schema.def() == res.schema.def()) {
                 sub_schema.emplace(std::move(res));
                 break;
@@ -475,6 +467,14 @@ sharded_store::get_id(subject sub, std::optional<schema_version> version) {
 
 ss::future<subject_schema> sharded_store::get_subject_schema(
   subject sub, std::optional<schema_version> version, include_deleted inc_del) {
+    return get_subject_schema(sub, version, inc_del, normalize::no);
+}
+
+ss::future<subject_schema> sharded_store::get_subject_schema(
+  subject sub,
+  std::optional<schema_version> version,
+  include_deleted inc_del,
+  normalize norm) {
     auto sub_shard{shard_for(sub)};
     auto v_id = co_await _store.invoke_on(
       sub_shard, _smp_opts, [sub, version, inc_del](store& s) {
@@ -487,7 +487,8 @@ ss::future<subject_schema> sharded_store::get_subject_schema(
       });
 
     try {
-        auto canonical = co_await make_canonical_schema({sub, std::move(def)});
+        auto canonical = co_await make_canonical_schema(
+          {sub, std::move(def)}, norm);
 
         co_return subject_schema{
           .schema = std::move(canonical),

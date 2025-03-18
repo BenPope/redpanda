@@ -92,6 +92,12 @@ public:
       std::optional<schema_version> version,
       include_deleted inc_dec) final;
 
+    ss::future<subject_schema> get_subject_schema(
+      subject sub,
+      std::optional<schema_version> version,
+      include_deleted inc_dec,
+      normalize norm);
+
     ///\brief Return the id of a schema by subject and version (or latest).
     ss::future<schema_id>
     get_id(subject sub, std::optional<schema_version> version);
