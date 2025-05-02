@@ -347,9 +347,6 @@ FIXTURE_TEST(metadata_v9_authz_acl, metadata_fixture) {
 
 FIXTURE_TEST(metadata_empty_topic_name, metadata_fixture) {
     using kafka::api_version;
-    if (kafka::metadata_handler::max_supported < api_version{12}) {
-        return;
-    }
 
     auto client = make_kafka_client().get();
     client.connect().get();
@@ -385,9 +382,6 @@ FIXTURE_TEST(metadata_empty_topic_name, metadata_fixture) {
 
 FIXTURE_TEST(metadata_non_empty_topic_id, metadata_fixture) {
     using kafka::api_version;
-    if (kafka::metadata_handler::max_supported < api_version{12}) {
-        return;
-    }
     ss::sstring test_topic_name = "metadata_non_empty_topic_id";
 
     create_topic(test_topic_name, 1, 1);

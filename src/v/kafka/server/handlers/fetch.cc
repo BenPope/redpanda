@@ -339,6 +339,7 @@ static ss::future<read_result> do_read_from_ntp(
     if (leader_epoch_err != error_code::none) {
         co_return read_result(leader_epoch_err);
     }
+    // kafka_partition->get_leader_epoch_last_offset(kafka::leader_epoch epoch)
     auto offset_ec = co_await kafka_partition->validate_fetch_offset(
       ntp_config.cfg.start_offset,
       ntp_config.cfg.read_from_follower,
