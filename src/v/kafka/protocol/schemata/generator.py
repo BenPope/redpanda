@@ -632,6 +632,9 @@ STRUCT_TYPES = [
     "ValueData",
 ]
 
+# A list of StructTypes that are allowed to be not arrays in the schema.
+ALLOWED_SINGULAR_STRUCT_TYPES = []
+
 DROP_STREAM_OPERATOR = [
     "metadata_response_data",
     "metadata_response_topic",
@@ -650,6 +653,12 @@ WITHOUT_DEFAULT_EQUALITY_OPERATOR = {
 # respective types are not prefixed with []. The generator special cases these
 # as ArrayTypes
 TAGGED_WITH_FIELDS = []
+
+# The following is a list of tag types which contain fields where their
+# respective types are correctly not prefixed with [].
+# They must not be treated as ArrayTypes
+# This list is the names after struct_renames have been applied.
+SINGULAR_STRUCT_TYPES = []
 
 SCALAR_TYPES = list(basic_type_map.keys())
 ENTITY_TYPES = list(entity_type_map.keys())
@@ -773,11 +782,13 @@ class FieldType:
             t = ScalarType(type_name)
         else:
             # Its possible for tagged types to contain fields where the type is not
-            # prefixed with [], these types are listed in the TAGGED_WITH_FIELDS map
+            # prefixed with [].
+            # Types in TAGGED_WITH_FIELDS map are treated as ArrayTypes
+            # Types in SINGULAR_STRUCT_TYPES map are not treated as ArrayTypes
             is_array = is_array or (type_name in TAGGED_WITH_FIELDS)
-            assert is_array
             path = path + (field["name"], )
             type_name = apply_struct_renames(path, type_name)
+            assert is_array or (type_name in SINGULAR_STRUCT_TYPES)
             t = StructType(type_name, field["fields"], path)
 
         if is_array:
@@ -1383,7 +1394,7 @@ if ({{ cond }}) {
 {%- endif %}
 {%- endmacro %}
 
-{% macro field_decoder(field, methods, obj) %}
+{% macro field_decoder(field, methods, obj, unused = "") %}
 {%- set flex = methods|length > 1 %}
 {%- if obj %}
 {%- set fname = obj + "." + field.name %}
@@ -1410,6 +1421,9 @@ if ({{ cond }}) {
 {%- endif %}
 });
 {%- else %}
+{%- if field.type().is_struct -%}
+{{- struct_serde(field.type(), methods, "v." ~ field.name) -}}
+{%- else -%}
 {%- set decoder, named_type = field.decoder(flex) %}
 {%- if named_type == None %}
 {{ fname }} = reader.{{ decoder }};
@@ -1426,6 +1440,7 @@ if ({{ cond }}) {
 }
 {%- else %}
 {{ fname }} = {{ named_type }}(reader.{{ decoder }});
+{%- endif %}
 {%- endif %}
 {%- endif %}
 {%- endmacro %}
@@ -1452,7 +1467,7 @@ while(num_tags-- > 0) {
 }
 {%- endmacro %}
 
-{% macro tag_decoder(tag_definitions, obj = "") %}
+{% macro tag_decoder(tag_definitions, obj = "", unused = "") %}
 {%- if tag_definitions|length == 0 %}
 {%- set tf = "unknown_tags" %}
 {%- if obj != "" %}
@@ -1478,6 +1493,10 @@ if ({{ fname }}) {
 }
 {%- elif tdef.is_array %}
 if (!{{ fname }}.empty()) {
+    {{ vec }}.push_back({{ tdef.tag() }});
+}
+{%- elif tdef.type().is_struct  %}
+if ({{ fname }} != {{ tdef.type().name }}{}) {
     {{ vec }}.push_back({{ tdef.tag() }});
 }
 {%- elif tdef.default_value() != "" %}
@@ -1510,7 +1529,11 @@ for(uint32_t tag : to_encode) {
     switch(tag){
 {%- for tdef in tag_definitions %}
     case {{ tdef.tag() }}:
+{%- if tdef.type().is_struct -%}
+{{- struct_serde(tdef.type(), (field_encoder, tag_encoder), obj ~ "." ~ tdef.name, "rw") | indent | indent }}
+{%- else %}
 {{- field_encoder(tdef, (field_encoder, tag_encoder), obj, "rw") | indent | indent }}
+{%- endif %}
         break;
 {%- endfor %}
     default:
@@ -1521,13 +1544,13 @@ for(uint32_t tag : to_encode) {
 writer.write_tags(tagged_fields(std::move(tags_to_encode)));
 {%- endmacro %}
 
-{% macro tag_encoder(tag_definitions, obj = "") %}
+{% macro tag_encoder(tag_definitions, obj = "", writer = "writer") %}
 {%- if tag_definitions|length == 0 %}
 {%- set tf = "unknown_tags" %}
 {%- if obj != "" %}
 {%- set tf = obj + '.unknown_tags' %}
 {%- endif %}
-writer.write_tags(std::move({{ tf }}));
+{{ writer }}.write_tags(std::move({{ tf }}));
 {%- else %}
 {
 {{- tag_encoder_impl(tag_definitions, obj) | indent }}
@@ -1540,15 +1563,15 @@ writer.write_tags(std::move({{ tf }}));
 {% set flex_encoder = (field_encoder, tag_encoder) %}
 {% set flex_decoder = (field_decoder, tag_decoder) %}
 
-{% macro struct_serde(struct, serde_methods, obj = "") %}
+{% macro struct_serde(struct, serde_methods, obj = "", writer = "writer") %}
 {%- set flex = serde_methods|length > 1 %}
 {%- for field in struct.fields %}
 {%- call version_guard(field, flex) %}
-{{- serde_methods[0](field, serde_methods, obj) }}
+{{- serde_methods[0](field, serde_methods, obj, writer) }}
 {%- endcall %}
 {%- endfor %}
 {%- if flex %}
-{{- serde_methods[1](struct.tags, obj) }}
+{{- serde_methods[1](struct.tags, obj, writer) }}
 {%- endif %}
 {%- endmacro %}
 
@@ -1801,9 +1824,9 @@ std::ostream& operator<<(std::ostream& o, const {{ struct.name }}&) {
 # generator for some scenarios involving overloads / customizing output.
 ALLOWED_SCALAR_TYPES = list(set(SCALAR_TYPES) - set(["iobuf"]))
 ALLOWED_TYPES = \
-    ALLOWED_SCALAR_TYPES + \
-    [f"[]{t}" for t in ALLOWED_SCALAR_TYPES +
-        STRUCT_TYPES] + TAGGED_WITH_FIELDS
+    SINGULAR_STRUCT_TYPES + ALLOWED_SINGULAR_STRUCT_TYPES + \
+    ALLOWED_SCALAR_TYPES + TAGGED_WITH_FIELDS  + \
+    [f"[]{t}" for t in ALLOWED_SCALAR_TYPES + STRUCT_TYPES]
 
 # yapf: disable
 SCHEMA = {
