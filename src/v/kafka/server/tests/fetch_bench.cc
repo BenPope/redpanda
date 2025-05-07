@@ -27,10 +27,11 @@
 namespace {
 
 constexpr auto version_with_rack{kafka::api_version{11}};
+constexpr auto version_with_epoch_validation{kafka::api_version{12}};
 constexpr auto version_max_supported{kafka::fetch_handler::max_supported};
 
 static_assert(
-  version_max_supported == version_with_rack,
+  version_max_supported == version_with_epoch_validation,
   "Consider adding a test for next supported version");
 
 } // namespace
@@ -328,10 +329,24 @@ PERF_TEST_CN(large_fetch_t, single_partition_fetch_version_max) {
     co_return co_await fetch_from(single_partition_req_config(t));
 }
 
+PERF_TEST_CN(large_fetch_t, single_partition_fetch_version_with_rack) {
+    static model::topic t = co_await initialize_single_partition_topic();
+
+    co_return co_await fetch_from(
+      single_partition_req_config(t, version_with_rack));
+}
+
 PERF_TEST_CN(small_fetch_t, single_partition_fetch_version_max) {
     static model::topic t = co_await initialize_single_partition_topic();
 
     co_return co_await fetch_from(single_partition_req_config(t));
+}
+
+PERF_TEST_CN(small_fetch_t, single_partition_fetch_version_with_rack) {
+    static model::topic t = co_await initialize_single_partition_topic();
+
+    co_return co_await fetch_from(
+      single_partition_req_config(t, version_with_rack));
 }
 
 PERF_TEST_CN(large_fetch_t, multi_partition_fetch_version_max) {
@@ -343,6 +358,13 @@ PERF_TEST_CN(large_fetch_t, multi_partition_fetch_version_max) {
     co_return co_await fetch_from(multi_partition_req_config(t));
 }
 
+PERF_TEST_CN(large_fetch_t, multi_partition_fetch_version_with_rack) {
+    static model::topic t = co_await initialize_multi_partition_topic();
+
+    co_return co_await fetch_from(
+      multi_partition_req_config(t, version_with_rack));
+}
+
 PERF_TEST_CN(small_fetch_t, multi_partition_fetch_version_max) {
     static model::topic t = co_await initialize_multi_partition_topic();
 
@@ -350,4 +372,11 @@ PERF_TEST_CN(small_fetch_t, multi_partition_fetch_version_max) {
     // from a foreign shard. This will hopefully allow us to detect if more
     // or less cross shard calls are being made for a fetch.
     co_return co_await fetch_from(multi_partition_req_config(t));
+}
+
+PERF_TEST_CN(small_fetch_t, multi_partition_fetch_version_with_rack) {
+    static model::topic t = co_await initialize_multi_partition_topic();
+
+    co_return co_await fetch_from(
+      multi_partition_req_config(t, version_with_rack));
 }
