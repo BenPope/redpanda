@@ -221,7 +221,7 @@ public:
 
         if (r.data.errored()) {
             vlog(
-              kwire.debug,
+              kwire.info,
               "[{}:{}] sending {}:{} for {}, response {}",
               _conn->client_host(),
               _conn->client_port(),
@@ -231,7 +231,7 @@ public:
               r);
         } else {
             vlog(
-              kwire.trace,
+              kwire.info,
               "[{}:{}] sending {}:{} for {}, response {}",
               _conn->client_host(),
               _conn->client_port(),

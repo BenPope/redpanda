@@ -12,6 +12,7 @@
 
 #include "kafka/data/partition_proxy.h"
 #include "kafka/protocol/errors.h"
+#include "kafka/server/logger.h"
 
 #include <compare>
 
@@ -23,13 +24,26 @@ inline kafka::error_code check_leader_epoch(
      * no leader epoch provided, skip validation
      */
     if (request_epoch < 0) {
+        vlog(
+          klog.info,
+          "Leader epoch not provided, skipping leader epoch validation");
         return error_code::none;
     }
     const auto partition_epoch = p.leader_epoch();
 
     if (request_epoch > partition_epoch) {
+        vlog(
+          klog.info,
+          "Leader epoch {} is greater than partition epoch {}",
+          request_epoch,
+          partition_epoch);
         return error_code::unknown_leader_epoch;
     } else if (request_epoch < partition_epoch) {
+        vlog(
+          klog.info,
+          "Leader epoch {} is less than partition epoch {}",
+          request_epoch,
+          partition_epoch);
         return error_code::fenced_leader_epoch;
     } else {
         return error_code::none;
