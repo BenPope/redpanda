@@ -810,7 +810,8 @@ private:
         // are produced to without acks=all. The `last_visible_index` more
         // closely corresponds to the Kafka high watermark as well.
         std::vector<model::offset> last_visible_indexes(requests.size());
-        std::vector<std::tuple<size_t, model::partition_id>> errored_partitions;
+        std::vector<std::tuple<size_t, model::partition_id, error_code>>
+          errored_partitions;
         size_t total_size{0};
         bool has_error{false};
 
@@ -818,12 +819,26 @@ private:
             const auto& req = requests[i];
             auto part = _ctx.mgr.get(req.ktp());
             if (!part) {
-                errored_partitions.emplace_back(i, req.ktp().get_partition());
+                errored_partitions.emplace_back(
+                  i,
+                  req.ktp().get_partition(),
+                  error_code::not_leader_for_partition);
                 continue;
             }
             auto consensus = part->raft();
             if (!consensus) {
-                errored_partitions.emplace_back(i, req.ktp().get_partition());
+                errored_partitions.emplace_back(
+                  i,
+                  req.ktp().get_partition(),
+                  error_code::not_leader_for_partition);
+                continue;
+            }
+            auto part_proxy = kafka::make_partition_proxy(part);
+            auto err = details::check_leader_epoch(
+              req.cfg.current_leader_epoch, part_proxy);
+            if (err != error_code::none) {
+                errored_partitions.emplace_back(
+                  i, req.ktp().get_partition(), err);
                 continue;
             }
             last_visible_indexes[i] = consensus->last_visible_index();
@@ -846,8 +861,8 @@ private:
         // If we weren't able to read the last_visible_index for a partition
         // before calling `fetch_ntps_in_parallel` then we need to
         // return with an error for that partition.
-        for (auto [i, partition] : errored_partitions) {
-            results[i] = read_result(error_code::not_leader_for_partition);
+        for (auto [i, partition, err] : errored_partitions) {
+            results[i] = read_result(err);
             results[i].partition = partition;
         }
 
