@@ -27,12 +27,8 @@ from confluent_kafka.cimpl import KafkaException
 
 def tests_to_run():
     ignored_tests = set([
-        14,
+        # Broker: Not coordinator
         51,
-        67,
-        90,
-        99,
-        103,
         # timequery issue
         52,
         # consumer offsets coordinator and tx_coordinator reported to early
@@ -43,10 +39,12 @@ def tests_to_run():
         77,
         # create topic test - topic is being created despite invalid config
         81,
-        # fetch max bytes test
+        # fetch max bytes test (Invalid response size 1843717 (0..1000512): increase receive.message.max.bytes)
         82,
-        # additional topic configuration reported by Redpanda
-        92,
+        # commit_metadata (control_character_present_exception)
+        99,
+        # transactions: (Transaction timeout is larger than the maximum value allowed by the broker's max.transaction.timeout.ms)
+        103,
         # autocreate topics test - security
         109,
         # cooperative rebalance issue
@@ -54,15 +52,62 @@ def tests_to_run():
         # ACL test - TODO: add security config to the test
         115,
         119,
-        # tests that are flaky in CI
+        # store_offsets: (control_character_present_exception)
+        130,
+        # ssl_keys (Failed to open ssl.keystore.location: ./fixtures/ssl/client.keystore.p12: error:10000080:BIO routines::no such file)
+        133,
+        # barrier_batch_consume (Expected offset should be 7, but it is 9)
+        137,
+
+        #      tests that are flaky in CI
+        # Autotopic (Broker: Invalid topic)
+        7,
+        # produce_batch
+        11,
+        # produce_consume
+        12,
+        # null_msgs (Broker: Invalid topic)
+        13,
+        # reconsume (Broker: Invalid topic)
+        14,
+        # destroy_hang (Broker: Invalid topic)
+        20,
+        # assign_offset ()
+        29,
+        # offset_commmit
         30,
+        # event (Connect to ipv4#0.0.0.0:65534 failed: Connection refused )
+        39,
+        # io_event
+        40,
+        # many topics
+        42,
+        # (Broker: Invalid topic)
+        48,
+        # subscribe_adds (Local: Unknown topic)
+        50,
+        # bsearch
+        59,
+        # yield (Broker: Invalid topic)
+        65,
+        # empty topic
+        67,
+        # produce_retry ( Failed to acquire idempotence PID from broker)
+        76,
+        # cb_event (Local: Unknown topic)
+        83,
+        # destroy_flags
         84,
+        # idempotence (Broker: Not coordinator)
+        90,
+        # fetch_queue_backoff
+        127,
         # using mocked cluster, not relevant
         105,
-        # failing always - requires proper RCA done
+        # retry: failing always - requires proper RCA done
         75,
     ])
-    return [t for t in range(120) if t not in ignored_tests]
+    return [t for t in range(152) if t not in ignored_tests]
 
 
 class LibrdkafkaTest(RedpandaTest):
@@ -81,12 +126,12 @@ class LibrdkafkaTest(RedpandaTest):
                                                  "default_topic_partitions": 4
                                              })
 
-    @ignore  # https://github.com/redpanda-data/redpanda/issues/7148
     @cluster(num_nodes=4)
-    @matrix(test_num=tests_to_run())
+    @matrix(test_num=tests_to_run(), kafka_version=["2.4.0", "3.0.0"])
     @skip_debug_mode
-    def test_librdkafka(self, test_num):
-        tc = LibrdkafkaTestcase(self.test_context, self.redpanda, test_num)
+    def test_librdkafka(self, test_num, kafka_version):
+        tc = LibrdkafkaTestcase(self.test_context, self.redpanda, test_num,
+                                kafka_version)
         tc.start()
         tc.wait()
 

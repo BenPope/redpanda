@@ -29,10 +29,15 @@ class LibrdkafkaTestcase(BackgroundThreadService):
         },
     }
 
-    def __init__(self, context, redpanda, test_case_number):
+    def __init__(self,
+                 context,
+                 redpanda,
+                 test_case_number,
+                 kafka_version=KAFKA_VERSION):
         super(LibrdkafkaTestcase, self).__init__(context, num_nodes=1)
         self.redpanda = redpanda
 
+        self.kafka_version = kafka_version
         self.test_case_number = test_case_number
         self.error = None
 
@@ -48,10 +53,10 @@ class LibrdkafkaTestcase(BackgroundThreadService):
 
         # environment to run the tests with
         env = {
-            "TEST_KAFKA_VERSION": LibrdkafkaTestcase.KAFKA_VERSION,
+            "TEST_KAFKA_VERSION": self.kafka_version,
             "TESTS": f"{self.test_case_number:04}",
             "RDKAFKA_TEST_CONF": LibrdkafkaTestcase.CONF_FILE,
-            "KAFKA_VERSION": LibrdkafkaTestcase.KAFKA_VERSION,
+            "KAFKA_VERSION": self.kafka_version,
             "KAFKA_PATH": LibrdkafkaTestcase.KAFKA_PATH,
             "BROKERS": self.redpanda.brokers(),
         }
