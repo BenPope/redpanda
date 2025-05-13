@@ -244,8 +244,8 @@ void validate_brokers_revisions(
     auto tp_it = all_metadata.find(model::topic_namespace_view(ntp));
     BOOST_REQUIRE(tp_it != all_metadata.end());
 
-    auto p_it = tp_it->second.metadata.get_assignments().find(ntp.tp.partition);
-    BOOST_REQUIRE(p_it != tp_it->second.metadata.get_assignments().end());
+    auto p_it = tp_it->second.get_assignments().find(ntp.tp.partition);
+    BOOST_REQUIRE(p_it != tp_it->second.get_assignments().end());
 
     auto p_meta_it = tp_it->second.partitions.find(ntp.tp.partition);
     BOOST_REQUIRE(p_meta_it != tp_it->second.partitions.end());

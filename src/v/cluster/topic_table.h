@@ -216,18 +216,23 @@ public:
     };
 
     struct topic_metadata_item {
-        using partitions_t
-          = contiguous_range_map<model::partition_id::type, partition_meta>;
+    protected:
         topic_metadata metadata;
-        partitions_t partitions;
 
-        assignments_set& get_assignments() {
-            return metadata.get_assignments();
+    public:
+        explicit topic_metadata_item(topic_metadata md)
+          : metadata{std::move(md)} {};
+
+        const topic_metadata& get_metadata() const { return metadata; }
+
+        contiguous_range_map<model::partition_id::type, partition_meta>
+          partitions;
+
+        template<typename Self>
+        decltype(auto) get_assignments(this Self&& self) {
+            return (std::forward<Self>(self).metadata.get_assignments());
         }
 
-        const assignments_set& get_assignments() const {
-            return metadata.get_assignments();
-        }
         model::revision_id get_revision() const {
             return metadata.get_revision();
         }
@@ -238,12 +243,35 @@ public:
         const topic_configuration& get_configuration() const {
             return metadata.get_configuration();
         }
-        topic_configuration& get_configuration() {
-            return metadata.get_configuration();
+
+        template<typename Self>
+        decltype(auto) get_configuration_properties(this Self&& self) {
+            return (
+              std::forward<Self>(self).metadata.get_configuration().properties);
         }
 
         replication_factor get_replication_factor() const {
             return metadata.get_replication_factor();
+        }
+    };
+
+    // Unsafe wrapper around topic_metadata_item that allows to mutate
+    // configuration that forms part of the key in the underlying map.
+    //
+    // NOTE: Do not add data members.
+    struct unsafe_topic_metadata_item : topic_metadata_item {
+        explicit unsafe_topic_metadata_item(topic_metadata md)
+          : topic_metadata_item(std::move(md)) {}
+
+        unsafe_topic_metadata_item& operator=(topic_metadata_item&& item) {
+            topic_metadata_item::operator=(std::move(item));
+            return *this;
+        }
+
+        topic_metadata& get_metadata() { return metadata; }
+
+        topic_configuration& get_configuration() {
+            return metadata.get_configuration();
         }
     };
 
@@ -264,19 +292,26 @@ public:
 
         const auto& by_id() const { return _by_id; }
 
-        auto begin() const { return _by_tp.begin(); }
-        auto end() const { return _by_tp.end(); }
+        template<typename Self>
+        auto begin(this Self&& self) {
+            return std::forward<Self>(self)._by_tp.begin();
+        }
+        template<typename Self>
+        auto end(this Self&& self) {
+            return std::forward<Self>(self)._by_tp.end();
+        }
         auto size() const { return _by_tp.size(); }
         auto empty() const { return _by_tp.empty(); }
 
-        template<typename... Args>
-        auto find(Args&&... args) const {
-            return _by_tp.find(args...);
+        template<typename Self, typename... Args>
+        auto find(this Self&& self, Args&&... args) {
+            return std::forward<Self>(self)._by_tp.find(
+              std::forward<Args>(args)...);
         }
 
         template<typename... Args>
         auto contains(Args&&... args) const {
-            return _by_tp.contains(args...);
+            return _by_tp.contains(std::forward<Args>(args)...);
         }
 
         template<typename... Args>
@@ -315,17 +350,18 @@ public:
             return _by_tp.erase(it);
         }
 
-        using mut_fn
-          = std::function<void(underlying_t::value_type::second_type&)>;
+        using mut_fn = std::function<void(unsafe_topic_metadata_item&)>;
         bool mutate(const underlying_t::const_iterator it, const mut_fn& func) {
             auto old_id = it->second.get_configuration().tp_id;
 
             // This is safe because the underlying _by_tp is mutable
-            // NOLINTBEGIN(*-const-cast)
+            // NOLINTBEGIN(*-const-cast, *static-cast-downcast)
             auto& md_item_mut
               = const_cast<underlying_t::value_type::second_type&>(it->second);
-            // NOLINTEND(*-const-cast)
-            func(md_item_mut);
+            // This is safe because unsafe_topic_metadata_item has no new data
+            // members
+            func(static_cast<unsafe_topic_metadata_item&>(md_item_mut));
+            // NOLINTEND(*-const-cast, *static-cast-downcast)
 
             auto new_id = it->second.get_configuration().tp_id;
             if (old_id != new_id) {
