@@ -306,11 +306,9 @@ FIXTURE_TEST(metadata_non_empty_topic_id, metadata_fixture) {
     client.connect().get();
 
     const auto make_request = [&]() {
-        auto uuid = kafka::uuid::from_string(
-          bytes_to_base64(tests::random_bytes(16)));
         return kafka::metadata_request{.data{
           .topics = {{{
-            .topic_id{uuid},
+            .topic_id{uuid_t::create()},
             .name{test_topic_name},
           }}},
           .allow_auto_topic_creation = false,
