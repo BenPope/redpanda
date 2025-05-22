@@ -38,6 +38,7 @@
 #include <boost/numeric/conversion/cast.hpp>
 #include <fmt/ostream.h>
 
+#include <algorithm>
 #include <iterator>
 #include <type_traits>
 
@@ -121,12 +122,15 @@ metadata_response::topic make_topic_response_from_topic_metadata(
   const is_node_isolated_or_decommissioned is_node_isolated,
   bool recovery_mode_enabled) {
     static constexpr model::node_id no_leader(-1);
-    metadata_response::topic tp;
-    tp.error_code = error_code::none;
-    model::topic_namespace_view tp_ns = tp_md.get_configuration().tp_ns;
-    tp.name = tp_md.get_configuration().tp_ns.tp;
+    const auto& topic_cfg = tp_md.get_configuration();
+    const auto& tp_ns = topic_cfg.tp_ns;
 
-    tp.is_internal = is_internal(tp_ns);
+    metadata_response::topic tp{
+      .error_code = error_code::none,
+      .name = tp_ns.tp,
+      .topic_id = topic_cfg.tp_id.value_or(model::topic_id{}),
+      .is_internal = is_internal(tp_ns),
+    };
 
     const bool is_user_topic = model::is_user_topic(tp_ns);
     const auto* disabled_set = md_cache.get_topic_disabled_set(tp_ns);
@@ -301,23 +305,42 @@ static ss::future<chunked_vector<metadata_response::topic>> get_topic_metadata(
     std::vector<model::topic> topics_to_be_created;
     std::vector<ss::future<metadata_response::topic>> new_topics;
 
+    bool use_topic_ids = std::ranges::any_of(
+      *request.data.topics,
+      [](const auto& topic) { return topic.topic_id != model::topic_id{}; });
+
     for (auto& topic : *request.data.topics) {
         const auto move_topic_name = [&topic]() {
             return std::move(topic.name).value_or(model::topic{});
         };
 
-        /**
-         * Authorize source topic in case if we deal with materialized one
-         */
-        if (!ctx.authorized(
-              security::acl_operation::describe,
-              topic.name.value_or(model::topic{}))) {
-            // not authorized, return authorization error
-            res.push_back(make_error_topic_response(
-              move_topic_name(), error_code::topic_authorization_failed));
-            continue;
+        const bool should_describe
+          = (!use_topic_ids && topic.name.has_value())
+            || (use_topic_ids && topic.topic_id != model::topic_id{});
+
+        if (use_topic_ids && topic.topic_id != model::topic_id{}) {
+            // Check if topic is not found by ID
+            auto name = ctx.metadata_cache().get_name_by_id(topic.topic_id);
+            if (!name.has_value()) {
+                res.push_back(metadata_response::topic{
+                  .error_code = kafka::error_code::unknown_topic_id,
+                  .topic_id = topic.topic_id});
+                continue;
+            }
+            topic.name = std::move(name)->tp;
         }
-        if (topic.name.has_value()) {
+
+        if (should_describe) {
+            /**
+             * Authorize source topic in case if we deal with materialized one
+             */
+            if (!ctx.authorized(
+                  security::acl_operation::describe, topic.name.value())) {
+                // not authorized, return authorization error
+                res.push_back(make_error_topic_response(
+                  move_topic_name(), error_code::topic_authorization_failed));
+                continue;
+            }
             if (auto md = ctx.metadata_cache().get_topic_metadata(
                   model::topic_namespace_view(
                     model::kafka_namespace, *topic.name));
@@ -333,13 +356,15 @@ static ss::future<chunked_vector<metadata_response::topic>> get_topic_metadata(
         if (
           !config::shard_local_cfg().auto_create_topics_enabled
           || !request.data.allow_auto_topic_creation) {
-            bool valid = topic.name.has_value()
-                         && validate_kafka_topic_name(*topic.name)
-                              == model::errc::success;
-            res.push_back(make_error_topic_response(
-              move_topic_name(),
-              valid ? error_code::unknown_topic_or_partition
-                    : error_code::invalid_topic_exception));
+            if (!use_topic_ids) {
+                bool valid = topic.name.has_value()
+                             && validate_kafka_topic_name(*topic.name)
+                                  == model::errc::success;
+                res.push_back(make_error_topic_response(
+                  move_topic_name(),
+                  valid ? error_code::unknown_topic_or_partition
+                        : error_code::invalid_topic_exception));
+            }
             continue;
         }
         /**
