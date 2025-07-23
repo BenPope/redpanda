@@ -247,7 +247,14 @@ FIXTURE_TEST(fetch_one, redpanda_thread_fixture) {
           });
     }).get();
 
-    for (auto version : boost::irange<uint16_t>(
+    const auto& topic_id = app.metadata_cache.local()
+                             .get_topic_metadata_ref(
+                               model::topic_namespace_view(ntp))
+                             ->get()
+                             .get_configuration()
+                             .tp_id;
+
+    for (auto version : boost::irange<kafka::api_version>(
            kafka::fetch_handler::min_supported,
            kafka::fetch_handler::max_supported + int16_t(1))) {
         info("Checking fetch api v{}", version);
@@ -259,21 +266,28 @@ FIXTURE_TEST(fetch_one, redpanda_thread_fixture) {
         req.data.session_id = kafka::invalid_fetch_session_id;
         req.data.session_epoch = kafka::final_fetch_session_epoch;
         req.data.topics.emplace_back(kafka::fetch_topic{
-          .topic = topic,
           .partitions = {{
             .partition = pid,
             .fetch_offset = offset,
           }},
         });
+        if (version >= kafka::api_version{13}) {
+            req.data.topics.back().topic_id = *topic_id;
+        } else {
+            req.data.topics.back().topic = topic;
+        }
 
         auto client = make_kafka_client().get();
         client.connect().get();
-        auto resp
-          = client.dispatch(std::move(req), kafka::api_version(version)).get();
+        auto resp = client.dispatch(std::move(req), version).get();
         client.stop().then([&client] { client.shutdown(); }).get();
 
         BOOST_REQUIRE(resp.data.responses.size() == 1);
-        BOOST_REQUIRE(resp.data.responses[0].topic == topic());
+        if (version >= kafka::api_version{13}) {
+            BOOST_REQUIRE_EQUAL(resp.data.responses[0].topic_id, *topic_id);
+        } else {
+            BOOST_REQUIRE(resp.data.responses[0].topic == topic());
+        }
         BOOST_REQUIRE(resp.data.responses[0].partitions.size() == 1);
         BOOST_REQUIRE(
           resp.data.responses[0].partitions[0].error_code
@@ -551,7 +565,7 @@ FIXTURE_TEST(fetch_current_leader_v12, cluster_test_fixture) {
 
     publish_some(new_app_ptr);
 
-    // An alternative is to issue a linearizable_barrier, like list_offsets.
+    // This is in lieu of a linearizable_barrier.
     BOOST_TEST_INFO("Waiting for metadata cache to update");
     wait_for(10s, [&] {
         cluster::leader_term expected{
