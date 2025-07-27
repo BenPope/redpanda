@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include "absl/container/flat_hash_map.h"
 #include "base/seastarx.h"
 #include "cluster/fwd.h"
 #include "cluster/members_table.h"
@@ -19,6 +18,7 @@
 #include "cluster/topic_table.h"
 #include "cluster/types.h"
 #include "model/fundamental.h"
+#include "model/kitp.h"
 #include "model/metadata.h"
 #include "model/timestamp.h"
 #include "pandaproxy/schema_registry/subject_name_strategy.h"
@@ -127,6 +127,7 @@ public:
     bool should_reject_reads(model::topic_namespace_view) const;
     bool should_reject_writes(model::topic_namespace_view) const;
 
+    bool contains(const model::kitp& kitp) const;
     bool contains(model::topic_namespace_view, model::partition_id) const;
     bool contains(model::topic_namespace_view) const;
     topic_table::topic_state
