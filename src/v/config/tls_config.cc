@@ -21,6 +21,19 @@
 #include <seastar/util/variant_utils.hh>
 
 namespace config {
+
+const std::string_view tlsv1_2_cipher_string
+  = "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:AES128-GCM-"
+    "SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:AES256-"
+    "GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-CHACHA20-POLY1305:"
+    "ECDHE-RSA-AES128-SHA:AES128-CCM:ECDHE-RSA-AES256-SHA";
+
+const std::string_view tlsv1_3_ciphersuites
+  = "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_"
+    "SHA256";
+
+const std::string_view tls_curves = "P-256:P-384:X25519";
+
 ss::future<std::optional<ss::tls::credentials_builder>>
 tls_config::get_credentials_builder() const& {
     if (_enabled) {
@@ -32,6 +45,7 @@ tls_config::get_credentials_builder() const& {
                 {tlsv1_2_cipher_string.data(), tlsv1_2_cipher_string.size()});
               builder.set_ciphersuites(
                 {tlsv1_3_ciphersuites.data(), tlsv1_3_ciphersuites.size()});
+              builder.set_curves({tls_curves.data(), tls_curves.size()});
               builder.set_minimum_tls_version(
                 from_config(config::shard_local_cfg().tls_min_version()));
               builder.set_dh_level(ss::tls::dh_params::level::MEDIUM);
