@@ -73,7 +73,8 @@ assignments assignment_range::plan(
                 ++p_end;
                 --rem;
             }
-            auto& rtm = assignments[*mem_it][t.name];
+            // Dereference is safe, see: api_version_for (metadata v8)
+            auto& rtm = assignments[*mem_it][*t.name];
             rtm.reserve(std::distance(p_begin, p_end));
             std::transform(
               p_begin, p_end, std::back_inserter(rtm), [](auto& p) {

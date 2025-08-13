@@ -51,7 +51,8 @@ FIXTURE_TEST(produce_reconnect, kafka_client_fixture) {
     info("Client.dispatch metadata");
     auto res = client.dispatch(make_list_topics_req()).get();
     BOOST_REQUIRE_EQUAL(res.data.topics.size(), 1);
-    BOOST_REQUIRE_EQUAL(res.data.topics[0].name(), "t");
+    // Dereference is safe, see: api_version_for (metadata v8)
+    BOOST_REQUIRE_EQUAL((*res.data.topics[0].name)(), "t");
 
     client.set_batch_record_count(3);
     client.set_batch_size_bytes(1024);

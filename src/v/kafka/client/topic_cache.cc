@@ -23,7 +23,8 @@ void topic_cache::apply(
     topics_t new_cache;
     new_cache.reserve(topics.size());
     for (const auto& t : topics) {
-        auto& cache_t = new_cache.emplace(t.name, topic_data{}).first->second;
+        // Dereference is safe, see: api_version_for (metadata v8)
+        auto& cache_t = new_cache.emplace(*t.name, topic_data{}).first->second;
         cache_t.authorized_operations = t.topic_authorized_operations;
         if (!t.partitions.empty()) {
             cache_t.replication_factor = t.partitions[0].replica_nodes.size();

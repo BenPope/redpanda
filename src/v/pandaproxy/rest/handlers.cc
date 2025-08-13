@@ -110,7 +110,8 @@ get_topics_names(server::request_t rq, server::reply_t rp) {
           names.reserve(res.data.topics.size());
           for (auto& topic : res.data.topics) {
               if (!topic.is_internal) {
-                  names.emplace_back(topic.name);
+                  // Dereference is safe, see: api_version_for (metadata v8)
+                  names.emplace_back(*topic.name);
               }
           }
 

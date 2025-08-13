@@ -53,7 +53,8 @@ FIXTURE_TEST(reconnect, kafka_client_fixture) {
         info("Checking for known topic");
         auto res = client.dispatch(make_list_topics_req()).get();
         BOOST_REQUIRE_EQUAL(res.data.topics.size(), 1);
-        BOOST_REQUIRE_EQUAL(res.data.topics[0].name(), "t");
+        // Dereference is safe, see: api_version_for (metadata v8)
+        BOOST_REQUIRE_EQUAL((*res.data.topics[0].name)(), "t");
     }
 
     {
@@ -66,7 +67,8 @@ FIXTURE_TEST(reconnect, kafka_client_fixture) {
         info("Checking for known topic - controller ready");
         auto res = client.dispatch(make_list_topics_req()).get();
         BOOST_REQUIRE_EQUAL(res.data.topics.size(), 1);
-        BOOST_REQUIRE_EQUAL(res.data.topics[0].name(), "t");
+        // Dereference is safe, see: api_version_for (metadata v8)
+        BOOST_REQUIRE_EQUAL((*res.data.topics[0].name)(), "t");
     }
 
     info("Stopping client");
@@ -128,7 +130,8 @@ FIXTURE_TEST(password_change_live_client, kafka_client_fixture) {
         info("Checking for known topic");
         auto res = kafka_client.dispatch(make_list_topics_req()).get();
         BOOST_REQUIRE_EQUAL(res.data.topics.size(), 1);
-        BOOST_REQUIRE_EQUAL(res.data.topics[0].name(), "t");
+        // Dereference is safe, see: api_version_for (metadata v8)
+        BOOST_REQUIRE_EQUAL((*res.data.topics[0].name)(), "t");
     }
 
     {
@@ -146,7 +149,8 @@ FIXTURE_TEST(password_change_live_client, kafka_client_fixture) {
         info("Recheck for known topic");
         auto res = kafka_client.dispatch(make_list_topics_req()).get();
         BOOST_REQUIRE_EQUAL(res.data.topics.size(), 1);
-        BOOST_REQUIRE_EQUAL(res.data.topics[0].name(), "t");
+        // Dereference is safe, see: api_version_for (metadata v8)
+        BOOST_REQUIRE_EQUAL((*res.data.topics[0].name)(), "t");
     }
 
     info("Stopping kafka client");
