@@ -1845,6 +1845,14 @@ bool topic_table::contains(
     return false;
 }
 
+bool topic_table::contains(const model::kitp& kitp) const {
+    if (kitp.get_topic_id() != model::topic_id{}) {
+        return _topics.by_id().contains(kitp.get_topic_id())
+               && contains(kitp.as_tn_view(), kitp.get_partition());
+    }
+    return contains(kitp.as_tn_view(), kitp.get_partition());
+}
+
 topic_table::topic_state topic_table::get_topic_state(
   model::topic_namespace_view tp, model::revision_id id) const {
     if (id > _last_applied_revision_id) {
