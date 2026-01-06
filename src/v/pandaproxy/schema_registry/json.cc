@@ -301,7 +301,7 @@ public:
 
 private:
     const json_schema_definition::impl& _schema;
-    static constexpr int max_recursion_depth{50};
+    static constexpr int max_recursion_depth{1024};
     int _ref_units{max_recursion_depth};
 };
 
@@ -309,7 +309,7 @@ struct context {
     schema_context older;
     schema_context newer;
     mutable int superset_recursion_depth{0};
-    static constexpr int max_superset_recursion_depth{50};
+    static constexpr int max_superset_recursion_depth{1024};
 
     // Track schema pairs currently being compared to enable short-circuiting
     mutable absl::flat_hash_set<
