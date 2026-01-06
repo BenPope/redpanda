@@ -309,7 +309,12 @@ struct context {
     schema_context older;
     schema_context newer;
     mutable int superset_recursion_depth{0};
-    static constexpr int max_superset_recursion_depth{25};
+    static constexpr int max_superset_recursion_depth{50};
+
+    // Track schema pairs currently being compared to enable short-circuiting
+    mutable absl::flat_hash_set<
+      std::pair<const json::Value*, const json::Value*>>
+      comparing_pairs;
 };
 
 template<json_schema_dialect Dialect>
@@ -2174,6 +2179,18 @@ json_compatibility_result is_superset(
   const json::Value& older_schema,
   const json::Value& newer_schema,
   std::string_view path_str) {
+    // Short-circuit: if we're already comparing this exact pair, assume
+    // compatible This prevents infinite recursion in recursive schemas
+    auto schema_pair = std::make_pair(&older_schema, &newer_schema);
+    if (ctx.comparing_pairs.contains(schema_pair)) {
+        return json_compatibility_result{}; // Empty result = compatible
+    }
+
+    // Add this pair to the comparison stack
+    auto pair_guard = ss::defer(
+      [&ctx, schema_pair] { ctx.comparing_pairs.erase(schema_pair); });
+    ctx.comparing_pairs.insert(schema_pair);
+
     // Check recursion depth to prevent stack overflow
     if (++ctx.superset_recursion_depth > ctx.max_superset_recursion_depth) {
         --ctx.superset_recursion_depth;

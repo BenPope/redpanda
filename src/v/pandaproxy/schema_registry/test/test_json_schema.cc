@@ -1685,7 +1685,7 @@ static const auto compatibility_test_cases = std::to_array<compatibility_test_ca
   }
 })",
     .compat_result = {},
-    .expected_exception = true,
+    .expected_exception = false,  // Fixed: recursive schemas should be compatible with themselves
   },
   {
 // simple multiple recursive ref
