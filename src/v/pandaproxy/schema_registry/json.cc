@@ -340,7 +340,7 @@ struct context {
     }
 
 private:
-    static constexpr size_t max_superset_recursion_depth{53};
+    static constexpr size_t max_superset_recursion_depth{72};
     size_t _superset_recursion_depth{max_superset_recursion_depth};
 
 private:
