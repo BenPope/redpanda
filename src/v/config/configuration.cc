@@ -3807,7 +3807,7 @@ configuration::configuration()
       "Setting this too high may result in instability of the system due to "
       "stack overflow.",
       {.needs_restart = needs_restart::no, .visibility = visibility::tunable},
-      35,
+      40,
       {.min = 1})
   , kafka_memory_share_for_fetch(
       *this,
